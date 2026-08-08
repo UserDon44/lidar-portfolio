@@ -1,0 +1,20 @@
+{
+  "pipeline": [
+    {
+      "type": "readers.las",
+      "filename": "C:/Users/ryans/lidar-portfolio/data/raw/USGS_LPC_Eastern_Pima_County_Lidar_980398.laz"
+    },
+    {
+      "type": "filters.range",
+      "limits": "Classification[2:2]"
+    },
+    {
+      "type": "writers.gdal",
+      "filename": "C:/Users/ryans/lidar-portfolio/output/dem/dem_VENDOR.tif",
+      "resolution": 3.0,
+      "output_type": "idw",
+      "window_size": 6,
+      "nodata": -9999
+    }
+  ]
+}

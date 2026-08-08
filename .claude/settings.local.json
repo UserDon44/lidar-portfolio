@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(ls \"/c/Users/ryans/.claude/projects/C--Users-ryans-lidar-portfolio/memory/\")",
+      "Bash(python -c ' *)"
+    ]
+  }
+}
