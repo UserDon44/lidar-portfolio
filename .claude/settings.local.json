@@ -2,7 +2,32 @@
   "permissions": {
     "allow": [
       "Bash(ls \"/c/Users/ryans/.claude/projects/C--Users-ryans-lidar-portfolio/memory/\")",
-      "Bash(python -c ' *)"
+      "Bash(python -c ' *)",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "Bash(gdalinfo --version)",
+      "PowerShell(conda env list)",
+      "Read(//c/Users/ryans/miniforge3/envs//**)",
+      "Read(//c/Users/ryans/miniforge3/envs/lidar/Scripts//**)",
+      "Bash(export GDALBIN=\"/c/Users/ryans/miniforge3/envs/lidar/Library/bin\")",
+      "Bash(/c/Users/ryans/miniforge3/envs/lidar/Library/bin/gdalinfo.exe output/hillshade/hs_w120_s0.15_t1.6.tif)",
+      "Bash(/c/Users/ryans/miniforge3/envs/lidar/Library/bin/gdal_translate.exe -of PNG -outsize 300% 300% -projwin 980112.76 400577.8 981012.76 399227.8 output/hillshade/hs_w120_s0.15_t1.6.tif __TRACKED_VAR__/residential_cluster.png)",
+      "Bash(/c/Users/ryans/miniforge3/envs/lidar/Library/bin/gdalinfo.exe /c/Users/ryans/AppData/Local/Temp/claude/C--Users-ryans-lidar-portfolio/fc03d603-ca70-471a-83d2-21fb87544237/scratchpad/residential_cluster.png)",
+      "Bash(/c/Users/ryans/miniforge3/envs/lidar/Library/bin/gdal_translate.exe -of PNG -outsize 500% 500% -projwin 980260 400160 980430 399990 output/hillshade/hs_w120_s0.15_t1.6.tif __TRACKED_VAR__/candidate_rect.png)",
+      "Bash(\"/c/Users/ryans/miniforge3/envs/lidar/python.exe\" \"/c/Users/ryans/AppData/Local/Temp/claude/C--Users-ryans-lidar-portfolio/fc03d603-ca70-471a-83d2-21fb87544237/scratchpad/find_rect.py\")",
+      "Bash(\"/c/Users/ryans/miniforge3/envs/lidar/python.exe\" \"/c/Users/ryans/AppData/Local/Temp/claude/C--Users-ryans-lidar-portfolio/fc03d603-ca70-471a-83d2-21fb87544237/scratchpad/profile_rect.py\")",
+      "Bash(/c/Users/ryans/miniforge3/envs/lidar/Library/bin/gdal_translate.exe -of PNG -outsize 600% 600% -projwin 980290 400115 980375 400035 output/hillshade/hs_w120_s0.15_t1.6.tif __TRACKED_VAR__/candidate_rect2.png)",
+      "Bash(\"/c/Users/ryans/miniforge3/envs/lidar/python.exe\" -c \"import scipy; print\\(scipy.__version__\\)\")",
+      "Bash(\"/c/Users/ryans/miniforge3/envs/lidar/python.exe\" \"/c/Users/ryans/AppData/Local/Temp/claude/C--Users-ryans-lidar-portfolio/fc03d603-ca70-471a-83d2-21fb87544237/scratchpad/profile_rect2.py\")",
+      "Bash(\"/c/Users/ryans/miniforge3/envs/lidar/python.exe\" \"/c/Users/ryans/AppData/Local/Temp/claude/C--Users-ryans-lidar-portfolio/fc03d603-ca70-471a-83d2-21fb87544237/scratchpad/gridded_view.py\")",
+      "Bash(ls -la \"/c/Users/ryans/AppData/Local/Temp/claude/C--Users-ryans-lidar-portfolio/fc03d603-ca70-471a-83d2-21fb87544237/scratchpad/gridded_view.png\" 2>&1)",
+      "Bash(echo \"EXIT:$?\")",
+      "Bash(\"/c/Users/ryans/miniforge3/envs/lidar/python.exe\" -c \"print\\(1+1\\)\")",
+      "Bash(/c/Users/ryans/miniforge3/envs/lidar/python.exe -c ' *)",
+      "Bash(/c/Users/ryans/miniforge3/envs/lidar/Library/bin/gdal_translate.exe -of PNG -outsize 400% 400% -projwin 982450 402550 982750 402250 output/hillshade/hs_VENDOR.tif __TRACKED_VAR__/crossing_vendor.png)",
+      "Bash(/c/Users/ryans/miniforge3/envs/lidar/Library/bin/gdal_translate.exe -of PNG -outsize 400% 400% -projwin 982450 402550 982750 402250 output/hillshade/hs_w120_s0.15_t1.6.tif __TRACKED_VAR__/crossing_mine.png)",
+      "Bash(/c/Users/ryans/miniforge3/envs/lidar/Library/bin/gdal_translate.exe -of PNG -outsize 150% 150% -projwin 983300 401550 984700 400200 output/hillshade/hs_w120_s0.15_t1.6.tif __TRACKED_VAR__/pivot_field.png)",
+      "Bash(git commit *)"
     ]
   }
 }
