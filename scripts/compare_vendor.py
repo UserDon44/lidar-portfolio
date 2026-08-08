@@ -35,6 +35,25 @@ HS_DIR = ROOT / "output" / "hillshade"
 PIPE_DIR = ROOT / "scripts" / "pipelines"
 RES = 3.0  # output cell size, feet
 
+# Fixed tile extent (from the source LAZ header) that every run gets warped
+# onto before differencing. writers.gdal computes each run's raster extent
+# from that run's own point cloud bounding box, so two runs with slightly
+# different point populations (e.g. vendor class-2-only vs. your SMRF output)
+# round to different pixel grids (1668x1668 vs 1667x1667) and gdal_calc
+# refuses to difference them. Forcing both through gdalwarp onto this
+# explicit grid fixes it.
+TILE_EXTENT = (980112.76, 398427.81, 985112.75, 403427.80)  # minx miny maxx maxy
+
+
+def align(src_tif, out_tif):
+    """Warp a DEM onto the fixed tile grid so it can be differenced against
+    any other aligned DEM, regardless of what extent PDAL originally wrote."""
+    minx, miny, maxx, maxy = TILE_EXTENT
+    sh(["gdalwarp", "-te", str(minx), str(miny), str(maxx), str(maxy),
+        "-tr", str(RES), str(RES), "-r", "bilinear", "-overwrite",
+        str(src_tif), str(out_tif)])
+    return out_tif
+
 
 def sh(cmd):
     print("  $ " + " ".join(str(c) for c in cmd))
@@ -134,10 +153,14 @@ def main():
     # --- 3. difference raster ---------------------------------------
     # Positive = vendor is HIGHER than yours = you removed something they kept.
     # Negative = you are higher = you kept something they removed (buildings).
-    print(f"\n[4/4] Differencing (vendor minus yours)...")
-    sh(["gdal_calc", "-A", str(vend_tif), "-B", str(mine_tif),
+    # Align both onto the fixed tile grid first -- writers.gdal gives each
+    # run its own extent, and gdal_calc refuses to difference mismatched grids.
+    print(f"\n[4/4] Aligning both DEMs to a common grid, then differencing...")
+    vend_aligned = align(vend_tif, DEM_DIR / "dem_VENDOR_aligned.tif")
+    mine_aligned = align(mine_tif, DEM_DIR / f"dem_{tag}_aligned.tif")
+    sh(["gdal_calc", "-A", str(vend_aligned), "-B", str(mine_aligned),
         "--outfile", str(diff_tif),
-        "--calc", "A-B", "--NoDataValue", "-9999"])
+        "--calc", "A-B", "--NoDataValue", "-9999", "--overwrite"])
 
     print(f"""
 Done. Open these three together in QGIS:
