@@ -11,7 +11,16 @@ go. Write files directly rather than asking me to paste into an editor.
 
 ## CRITICAL: units are FEET
 CRS is **EPSG:6405** — NAD83(2011) / Arizona Central (ft). Horizontal units
-are US survey feet, NOT meters. Every distance parameter must be converted:
+are **International Feet** (EPSG:9002, 1 ft = 0.3048 m exactly) — **NOT**
+US survey feet (EPSG:9003, 1 ft = 0.3048006096 m) and NOT meters. The
+International/US-survey distinction is only ~2 ppm (~0.06 ft over this
+5,000 ft tile) — numerically negligible, but stating the wrong one in a
+deliverable aimed at surveyors is exactly the kind of small error that
+audience notices. Confirmed explicitly in the original tile's own project
+documentation (see item on vertical datum/NVA below) — both the Psomas
+accuracy report and the Sanborn report of survey state "International
+Feet" verbatim. Every distance parameter must still be converted from
+metric defaults:
 
 | metric default | feet equivalent |
 |---|---|
@@ -428,8 +437,12 @@ by checking the output header against expected magnitude, not by assuming
 it worked. Fixed with an explicit `filters.transformation` scale matrix on
 Z. **Second unit subtlety**: EPSG:6405 uses the **international foot**
 (0.3048 m exactly, EPSG:9002), not the US survey foot (0.30480061 m,
-EPSG:9003) this project's docs otherwise call "US survey feet" — conversion
-factor used is `3.280839895`, not `3.280833333`.
+EPSG:9003) — this project's docs originally (wrongly) called it "US
+survey feet" throughout; fixed everywhere after this was independently
+confirmed by the original tile's own project documentation too (see the
+vertical datum/NVA item below — both source reports state "International
+Feet" verbatim). Conversion factor used is `3.280839895`, not
+`3.280833333`.
 
 **Tile stats after reprojection**: 3,309 × 3,310 ft (~251 acres),
 27,722,077 points (~27.7 pts/m², QL1-class — ~7.5x denser than the original

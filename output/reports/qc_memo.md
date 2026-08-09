@@ -37,10 +37,11 @@ classification not used as an input, only as a comparison baseline):
    1.6 ft, scalar 1.25.
 4. Ground points (class 2) rasterized at 3 ft cells, IDW, window_size 6.
 
-Parameters were converted from PDAL/SMRF metric defaults to this tile's US
-survey feet units (e.g., an 18 m default window becomes 60 ft; 60 ft, 120 ft,
-180 ft, and 240 ft were all tested — see §4). All pipeline JSON is retained
-per run in `scripts/pipelines/` as an audit trail.
+Parameters were converted from PDAL/SMRF metric defaults to this tile's
+International Feet units (EPSG:9002, not US survey feet — see the CRS line
+above; e.g., an 18 m default window becomes 60 ft; 60 ft, 120 ft, 180 ft,
+and 240 ft were all tested — see §4). All pipeline JSON is retained per run
+in `scripts/pipelines/` as an audit trail.
 
 ## 3. Accuracy Assessment
 
@@ -221,7 +222,8 @@ limitation at this scale, not a pipeline defect.
   target of ≤10 cm — the raw-LAS figure is marginally over that target,
   not flagged as a failure by the certifying surveyor. VVA was not
   assessed by the vendor (project area classified entirely non-vegetated
-  for accuracy-testing purposes).
+  for accuracy-testing purposes). Full source citation, including why it's
+  treated as authoritative, in §8.
 - **No external vertical control falls inside this specific tile** (§3.4)
   — the project's 134 check points are spread across the full ~2,203 sq
   mi collection area and none happen to land in this 574-acre tile. The
@@ -255,3 +257,34 @@ guessing, and logs per-tile QC to `output/reports/batch_qc.csv` (column
 definitions in `output/reports/batch_qc_README.md`). All currently
 processed tiles are cataloged in `output/dem/catalog.vrt`. See CLAUDE.md
 for the full design rationale.
+
+## 8. Sources (project documentation, external to this analysis)
+
+The vertical datum, sensor, acquisition dates, and project NVA cited
+throughout this memo (§3.4, §6) are not derived from this project's own
+processing — they come from the original 2015 collection's project
+documentation, located on USGS's public distribution server in a path
+separate from the LAZ tile downloads themselves
+(`Elevation/metadata/Eastern_Pima_County_Lidar/AZ_Eastern-PimaCO_2015/reports/`).
+The per-tile XML metadata shipped alongside the LAZ file is a thin,
+auto-generated stub with no real content (vertical accuracy listed as
+"N/A," process steps "unknown") and was not relied on for any of this.
+
+- **"2015 PAG LiDAR Data Absolute Vertical Accuracy Assessment,"**
+  Psomas, Project No. 7PIM130303, February 9, 2015. **Signed and sealed**
+  by Patrick McGarrity, AZ RLS #49459, ASPRS Certified Photogrammetrist
+  #R1245. Source of: vertical datum (NAVD88/Geoid12A), horizontal datum
+  and units, and the project NVA figures (RMSEz 10.3 cm raw LAS / 8.8 cm
+  DEM, 134 ASPRS-compliant check points).
+- **"LiDAR Campaign for the PAG Tucson, Report of Survey,"** Sanborn Map
+  Co. (the acquisition contractor), August 2015. Source of: sensor model
+  (Leica ALS70 HP), aircraft, flight mission dates and count, and an
+  independent confirmation of the datum/units above.
+
+A signed and sealed professional survey document is a stronger citation
+than unsigned metadata or a generic project webpage — it carries the
+preparer's professional license and legal responsibility for the stated
+facts, which is precisely the standard this deliverable's own accuracy
+claims should be held to. That is why these two documents, not the
+tile's own header, are cited as the authoritative source for the datum
+and NVA claims in this memo.
