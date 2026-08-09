@@ -1,4 +1,5 @@
 data/raw/
-output/
+output/*
+!output/reports/
 .claude/
 scripts/__pycache__/
