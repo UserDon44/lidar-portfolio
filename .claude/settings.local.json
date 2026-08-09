@@ -27,7 +27,16 @@
       "Bash(/c/Users/ryans/miniforge3/envs/lidar/Library/bin/gdal_translate.exe -of PNG -outsize 400% 400% -projwin 982450 402550 982750 402250 output/hillshade/hs_VENDOR.tif __TRACKED_VAR__/crossing_vendor.png)",
       "Bash(/c/Users/ryans/miniforge3/envs/lidar/Library/bin/gdal_translate.exe -of PNG -outsize 400% 400% -projwin 982450 402550 982750 402250 output/hillshade/hs_w120_s0.15_t1.6.tif __TRACKED_VAR__/crossing_mine.png)",
       "Bash(/c/Users/ryans/miniforge3/envs/lidar/Library/bin/gdal_translate.exe -of PNG -outsize 150% 150% -projwin 983300 401550 984700 400200 output/hillshade/hs_w120_s0.15_t1.6.tif __TRACKED_VAR__/pivot_field.png)",
-      "Bash(git commit *)"
+      "Bash(git commit *)",
+      "WebFetch(domain:geodesy.noaa.gov)",
+      "WebSearch",
+      "Bash(/c/Users/ryans/miniforge3/envs/lidar/Library/bin/gdalwarp.exe -te 980112.76 398427.81 985112.75 403427.80 -tr 3 3 -r near -overwrite output/dem/density_count_3ft.tif output/dem/density_count_3ft_aligned.tif)",
+      "Bash(/c/Users/ryans/miniforge3/envs/lidar/Library/bin/gdalinfo.exe output/dem/density_count_3ft_aligned.tif)",
+      "Bash(export GDAL_DATA=\"/c/Users/ryans/miniforge3/envs/lidar/Library/share/gdal\")",
+      "Bash(export PROJ_LIB=\"/c/Users/ryans/miniforge3/envs/lidar/Library/share/proj\")",
+      "Bash(/c/Users/ryans/miniforge3/envs/lidar/Library/bin/gdal_contour.exe -a elev_ft -i 2.0 -f GPKG output/dem/dem_w120_s0.15_t1.6.tif output/contours/contours_2ft_w120_s0.15_t1.6.gpkg)",
+      "WebFetch(domain:rockyweb.usgs.gov)",
+      "WebFetch(domain:tnmaccess.nationalmap.gov)"
     ]
   }
 }

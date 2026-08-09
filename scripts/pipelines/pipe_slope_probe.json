@@ -1,0 +1,20 @@
+{
+  "pipeline": [
+    {
+      "type": "readers.las",
+      "filename": "C:/Users/ryans/lidar-portfolio/data/raw/tucson_mtns_484572_epsg6405.laz"
+    },
+    {
+      "type": "filters.range",
+      "limits": "Classification[2:2]"
+    },
+    {
+      "type": "writers.gdal",
+      "filename": "C:/Users/ryans/lidar-portfolio/output/dem/tucson_slope_probe_dem.tif",
+      "resolution": 3.28,
+      "output_type": "idw",
+      "window_size": 6,
+      "nodata": -9999
+    }
+  ]
+}

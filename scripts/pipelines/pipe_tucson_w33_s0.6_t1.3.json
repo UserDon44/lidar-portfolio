@@ -1,0 +1,48 @@
+{
+  "pipeline": [
+    {
+      "type": "readers.las",
+      "filename": "C:/Users/ryans/lidar-portfolio/data/raw/tucson_mtns_484572_epsg6405.laz"
+    },
+    {
+      "type": "filters.assign",
+      "assignment": "Classification[:]=0"
+    },
+    {
+      "type": "filters.range",
+      "limits": "Classification![7:7],Classification![18:18]"
+    },
+    {
+      "type": "filters.elm",
+      "cell": 33.0,
+      "threshold": 3.3
+    },
+    {
+      "type": "filters.outlier",
+      "method": "statistical",
+      "mean_k": 8,
+      "multiplier": 3.0
+    },
+    {
+      "type": "filters.smrf",
+      "cell": 1.6,
+      "window": 33.0,
+      "slope": 0.6,
+      "threshold": 1.3,
+      "scalar": 0.75,
+      "ignore": "Classification[7:7]"
+    },
+    {
+      "type": "filters.range",
+      "limits": "Classification[2:2]"
+    },
+    {
+      "type": "writers.gdal",
+      "filename": "C:/Users/ryans/lidar-portfolio/output/dem/dem_tucson_w33_s0.6_t1.3.tif",
+      "resolution": 1.6,
+      "output_type": "idw",
+      "window_size": 6,
+      "nodata": -9999
+    }
+  ]
+}

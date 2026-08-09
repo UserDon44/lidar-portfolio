@@ -1,0 +1,23 @@
+{
+  "pipeline": [
+    {
+      "type": "readers.las",
+      "filename": "C:/Users/ryans/lidar-portfolio/data/raw/USGS_LPC_AZ_PimaCounty_2021_B21_484572.laz"
+    },
+    {
+      "type": "filters.transformation",
+      "matrix": "1 0 0 0  0 1 0 0  0 0 3.280839895 0  0 0 0 1"
+    },
+    {
+      "type": "filters.reprojection",
+      "in_srs": "EPSG:6341",
+      "out_srs": "EPSG:6405"
+    },
+    {
+      "type": "writers.las",
+      "filename": "C:/Users/ryans/lidar-portfolio/data/raw/tucson_mtns_484572_epsg6405.laz",
+      "a_srs": "EPSG:6405",
+      "compression": true
+    }
+  ]
+}
