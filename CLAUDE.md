@@ -22,9 +22,9 @@ are US survey feet, NOT meters. Every distance parameter must be converted:
 
 Getting this wrong silently produces garbage that still looks plausible.
 
-**Vertical datum is NOT declared in the file header** (`"vertical": ""`).
-Presumed NAVD88 ft based on source and era, but unverified. This needs to be
-confirmed against USGS project metadata and stated explicitly in the memo.
+**Vertical datum is NOT declared in the file header** (`"vertical": ""`),
+but is now **CONFIRMED** against authoritative project documentation (see
+"RESOLVED: vertical datum, sensor, and NVA" below): **NAVD88, Geoid12A**.
 
 ## The tile
 `data/raw/USGS_LPC_Eastern_Pima_County_Lidar_980398.laz`
@@ -515,6 +515,46 @@ threshold 1.3 ft, scalar 0.75) → class-2 filter → IDW raster, 1.6 ft.
 Deliverables: `output/dem/dem_tucson_lastreturn_w33_s0.6_t1.3.tif`,
 `output/hillshade/hs_tucson_lastreturn_w33_s0.6_t1.3.tif`.
 
+## RESOLVED: vertical datum, sensor, and NVA (original tile)
+
+Found the project's authoritative documentation on USGS's rockyweb server,
+in a parallel directory structure to the LPC tile downloads themselves
+(`Elevation/metadata/<project>/<subproject>/reports/`, as opposed to
+`Elevation/LPC/Projects/<project>/<subproject>/` for the tiles) — the
+per-tile XML metadata that ships with the LAZ is a thin auto-generated
+stub (vertical accuracy listed as "N/A", process steps "unknown") and
+does **not** contain any of this; it lives one level up, in a full report
+package. Two independent documents, confirming each other:
+
+- **"2015 LiDAR Vertical Accuracy Assessment.pdf"** — Psomas, signed and
+  sealed by Patrick McGarrity (AZ RLS #49459), Feb 9 2015.
+- **"Final_2015LiDAR_Report_PAG_Tucson.pdf"** ("LiDAR Campaign for the PAG
+  Tucson, Report of Survey") — Sanborn Map Co. (the acquisition
+  contractor), August 2015.
+
+| Item | Value | Source |
+|---|---|---|
+| **Vertical datum** | **NAVD88**, orthometric heights via **Geoid12A** | Both documents, independently |
+| Horizontal datum | NAD83(2011), Arizona State Plane Central, **International Feet** | Both documents — independently confirms the EPSG:6405 international-foot finding from item #10 |
+| Sensor | **Leica ALS70 HP**, in a Sanborn Aero-Commander 500-B (twin-engine, piston) | Sanborn report §2.2 |
+| Acquisition dates | **Feb 20–26, 2015**, 14 flight missions in ~1 week | Sanborn report Table 2, confirmed independently by the per-tile XML's "20150220"–"20150226" |
+| Acquisition contractor | Sanborn Map Co. | Sanborn report |
+| Accuracy assessment / QA | Psomas (Patrick McGarrity, PLS) | Psomas report |
+| **NVA, raw LAS** (134 ASPRS-compliant check points, all non-vegetated) | **RMSEz = 10.3 cm** (±20.2 cm @ 95% CI) | Psomas report — technically a hair over the ≤10 cm QL2 target, not flagged as a failure by the surveyor |
+| **NVA, bare-earth DEM** | **RMSEz = 8.8 cm** (±17.2 cm @ 95% CI) | Psomas report — clears the QL2 target |
+| Sanborn's own internal pre-classification check (32 points, different from the above) | RMSE 0.179 ft, mean −0.010 ft, std dev 0.181 ft | Sanborn report Table 3 |
+| VVA (vegetated vertical accuracy) | **Not assessed** — "All ... areas are classified as Non-vegetated" | Psomas report, stated explicitly |
+
+**Resolves the "day 307" question too**: the LAS header's file-creation
+date (day 307 = Nov 3, 2015) is when USGS/Sanborn finalized and
+repackaged the tile, months after the actual Feb 2015 flights — normal,
+given classification, QC, and final delivery all happen after acquisition.
+
+**Cite in the memo, verbatim where useful**: this fully replaces the
+"presumed NAVD88" caveat with a sourced, confirmed fact, and gives the
+memo a real, citable NVA figure (8.8 cm bare-earth DEM RMSEz) instead of
+just this project's own internal/relative accuracy checks.
+
 ## Known Limitations
 
 **Tile-boundary edge effects (SMRF, not buffered).** SMRF's ground
@@ -533,21 +573,18 @@ over available tiles' bounds, read-neighbor-and-crop, activated via an
 optional `--buffer-ft` flag once this project actually has adjacent tiles
 to test against.
 
+**Rock vs. solid-return vegetation on the Tucson tile is not separable
+with this data.** A solid single-return cactus hit and a solid rock hit
+are geometrically indistinguishable by SMRF or by return-count alone
+(§ item #10). Confirmed with the user as a permanent limitation, not
+something to keep chasing — would need intensity-based classification or
+co-registered NDVI/multispectral data this project doesn't have.
+
 ## Open questions
 
-**Vertical datum (original tile)** — still unconfirmed. Presumed NAVD88
-ft; needs checking against USGS project metadata before the memo states it
-as fact. (The Tucson tile's header, by contrast, declares NAVD88/Geoid18
-explicitly — supporting evidence, not proof, for the original tile.)
-
-**`output/reports/qc_memo.md` is gitignored** — `output/` is fully
-excluded, which makes sense for regenerable rasters but not for a
-hand-authored deliverable. Asked the user whether to carve out a
-`output/reports/` exception; not yet answered.
-
-**Rock vs. solid-return vegetation on the Tucson tile** — not resolved,
-and likely not resolvable with this data. Documented as a stated
-limitation rather than chased further (see item #10).
+None currently open. (Vertical datum and the `output/reports/` gitignore
+question, previously listed here, are both resolved — see above and
+Housekeeping below.)
 
 ## Next steps, in order
 
@@ -561,17 +598,13 @@ All ten original items are done:
 6. ~~Point density + void map~~ — **DONE**
 7. ~~Contours~~ — **DONE**
 8. ~~DSM and CHM~~ — **DONE**
-9. ~~QC memo~~ — **DONE** (pending: gitignore decision above)
+9. ~~QC memo~~ — **DONE**
 10. ~~Second tile, harder terrain~~ — **DONE**
 
-Remaining loose ends, not blocking:
-- Decide the `output/reports/` gitignore question above.
-- Verify the original tile's vertical datum against USGS project metadata
-  if this deliverable needs to move from "presumed" to "confirmed."
-- Optional: fold the Tucson tile's findings into a second QC memo /
-  addendum, if the portfolio wants that tile written up formally too.
-- Optional: the CHM's 72.87 ft max value (original tile) was never
-  identified — likely a pole, not investigated.
+Everything from the original plan, plus the batch processor and the
+vertical-datum/NVA research, is done. Remaining, purely optional:
+- Fold the Tucson tile's findings into a second QC memo/addendum, if the
+  portfolio wants that tile written up as a standalone deliverable too.
 
 ## Housekeeping / repo state
 
@@ -580,16 +613,22 @@ data/outputs from version control), `fb7b0cd` (stray junk files removed +
 `.gitignore` added), `221a2f5` (grid-alignment fix + first `CLAUDE.md`),
 `8013a91` (local permissions allowlist), `4b96512` (swath-overlap
 pipelines), `64ec83c` (density/DSM pipelines + Tucson parameter-search
-pipelines). Working tree was clean as of the last commit above; this
-`CLAUDE.md` update itself is not yet committed as of this writing.
+pipelines), `46b2c4e` (batch processor), `eec709f` (`output/reports/`
+gitignore exception + QC memo committed). This `CLAUDE.md` update itself
+is not yet committed as of this writing.
 
 - `data/raw/` now holds three files, all gitignored: the original tile,
   the raw downloaded Tucson tile (`USGS_LPC_AZ_PimaCounty_2021_B21_484572.laz`,
   meters/UTM12N, kept as the untouched source), and the reprojected
   working copy (`tucson_mtns_484572_epsg6405.laz`, EPSG:6405 ft).
-- All output rasters/hillshades (original tile + Tucson tile) and the QC
-  memo live under `output/`, entirely gitignored — see the Open questions
-  entry above about carving out an exception for `output/reports/`.
+- `output/` is gitignored except `output/reports/` (`.gitignore` uses
+  `output/*` + `!output/reports/`, not a plain `output/` exclude — a
+  bare `!output/reports/` does NOT work while the parent is fully
+  excluded, git won't traverse into an excluded directory to find
+  negation rules inside it; verified with `git check-ignore` before
+  committing). `output/reports/qc_memo.md`, `batch_qc.csv`, and
+  `batch_qc_README.md` are tracked; all rasters/hillshades stay
+  regenerated, not versioned.
 - Session PNG figures (hillshades, diff maps, histograms, comparison
   crops) live only in the session scratchpad, not the repo, unless
   explicitly sent to the user as deliverable images.

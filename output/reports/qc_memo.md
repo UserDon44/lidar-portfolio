@@ -2,9 +2,15 @@
 
 **Tile:** USGS_LPC_Eastern_Pima_County_Lidar_980398.laz
 **Location:** San Xavier District, Tohono O'odham Nation, Pima County, AZ
-**Horizontal datum/CRS:** NAD83(2011) / Arizona Central, US survey feet (EPSG:6405)
-**Vertical datum:** Presumed NAVD88 (ft) — **not declared in source file metadata; unconfirmed. See §6.**
-**Source collection:** 2015, day 307 (LAStools-processed), QL2, ~3.7 pts/m² average
+**Horizontal datum/CRS:** NAD83(2011) / Arizona Central, International Feet (EPSG:6405)
+**Vertical datum:** NAVD88, Geoid12A — confirmed against project documentation (Psomas
+2015 Vertical Accuracy Assessment; Sanborn Report of Survey, Aug 2015). Not declared in
+the delivered LAZ header itself, but sourced independently from both the accuracy
+assessment and the acquisition vendor's own report. See §6.
+**Sensor / acquisition:** Leica ALS70 HP, flown by Sanborn Map Co., Feb 20–26, 2015.
+Data classified QL2. Tile file itself finalized/repackaged later (LAS header shows a Nov 3,
+2015 creation date — normal lag for QC and final delivery, not a second acquisition).
+**Source collection:** ~3.7 pts/m² average
 **Date of this analysis:** 2026-08-09
 
 ---
@@ -120,6 +126,18 @@ field since 2009 and has only a scaled (imprecise) horizontal position; one
 and its published height was derived by datum-conversion (VERTCON3) rather
 than direct observation, with no published vertical order.
 
+**Update**: no control point-in-tile check is possible, as above, but the
+*project's own* authoritative NVA is now available (see header and §6) —
+Psomas's 2015 vertical accuracy assessment for this exact collection,
+using 134 ASPRS-compliant check points across the ~2,203 sq mi project
+area (none of which happen to fall inside this specific 574-acre tile,
+consistent with the NGS search above). Reported: **RMSEz = 10.3 cm on raw
+LAS, 8.8 cm on the bare-earth DEM**, both against the QL2 ≤10 cm target.
+This is the vendor's project-wide figure, not a check specific to this
+tile, but it is a real, sourced, external NVA — stronger evidence than
+"no external control was found," even though it doesn't replace an
+in-tile check point.
+
 **No true external NVA (per ASPRS Positional Accuracy Standards) is possible
 for this tile without new fieldwork** — e.g., a static GPS occupation on a
 nearby stable mark such as PA 2. This is stated here as a scope limitation,
@@ -144,6 +162,21 @@ almost void-free; the single-coverage strips on either side run at or below
 the QL2 floor. Voids follow the scanner's oscillating scan-line geometry
 (fine gaps between sweeps, healed wherever a second flight line overlaps)
 rather than clustering on the wash or any single feature.
+
+### 3.6 DSM/CHM tall-point check
+
+The canopy/structure height model's maximum value (72.87 ft) was checked
+rather than left unexplained. Location: 981146.26, 400792.30 ft
+(EPSG:6405), western residential block. Raw returns there: only 13 points
+exceed 10 ft above local ground (vs. hundreds across a footprint for an
+actual building, per §4 below), clustered narrowly in one axis (~3 ft)
+but spread ~17 ft in the other, and nearly all are the first return of a
+2-3 return pulse — consistent with a laser mostly passing through a thin,
+open structure and also registering ground behind it. **Conclusion: a
+utility pole or small transmission/communications tower**, not sensor
+noise or a bird strike (which would show as a single isolated point, not
+a small coherent cluster) and not a building or vegetation (both ruled
+out by height and point density). Real feature, correctly retained.
 
 ## 4. Feature Investigation: Roof vs. Pad
 
@@ -179,12 +212,21 @@ limitation at this scale, not a pipeline defect.
 
 ## 6. Limitations & Recommendations
 
-- **Vertical datum is presumed, not confirmed.** The source LAS header
-  declares no vertical CRS (`"vertical": ""`). NAVD88 ft is assumed based on
-  region and collection era; this should be verified against USGS project
-  metadata before this deliverable is treated as final.
-- **No external vertical control is available** for this tile (§3.4). A
-  formal NVA requires new fieldwork.
+- **Vertical datum: confirmed, not presumed.** NAVD88 via Geoid12A,
+  sourced from the project's own accuracy assessment (Psomas, Feb 2015)
+  and the acquisition vendor's report of survey (Sanborn, Aug 2015) — not
+  from the delivered LAZ's own header, which declares no vertical CRS.
+  Sensor was a Leica ALS70 HP, flown Feb 20–26, 2015. Project NVA:
+  RMSEz = 10.3 cm (raw LAS) / 8.8 cm (bare-earth DEM), against a QL2
+  target of ≤10 cm — the raw-LAS figure is marginally over that target,
+  not flagged as a failure by the certifying surveyor. VVA was not
+  assessed by the vendor (project area classified entirely non-vegetated
+  for accuracy-testing purposes).
+- **No external vertical control falls inside this specific tile** (§3.4)
+  — the project's 134 check points are spread across the full ~2,203 sq
+  mi collection area and none happen to land in this 574-acre tile. The
+  project-wide NVA above is real and sourced, but an in-tile check would
+  require new fieldwork.
 - **A systematic ~0.12 ft flight-line offset exists in the source
   collection** (§3.3) and should be disclosed to any downstream user relying
   on precision better than that in the affected area.
