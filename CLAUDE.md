@@ -94,12 +94,11 @@ classification, rasterizes ground-only at 3 ft IDW, generates hillshade.
 Writes its pipeline JSON to `scripts/pipelines/` for every run.
 
 **`scripts/compare_vendor.py`** — builds a DEM from the vendor's delivered
-class-2 points, builds mine, and differences them. **Updated this session**
-to fix the grid-alignment bug (see below): it now warps both DEMs onto a
-fixed tile-extent grid via `gdalwarp` before differencing. Not yet
-committed to git (see Git state below).
+class-2 points, builds mine, and differences them. Includes the
+grid-alignment fix (`TILE_EXTENT` + `align()`, both DEMs warped to a fixed
+grid via `gdalwarp` before differencing). Committed.
 
-Runs completed:
+Runs completed, original tile:
 - `w60_t1.6` — first attempt
 - `w120_s0.15_t1.6` — doubled window, near-identical result. **This is the
   DEM used for all QC analysis below.**
@@ -107,6 +106,29 @@ Runs completed:
   test whether window size was suppressing the residential rectangles. It
   wasn't (see Roof/pad finding).
 - `VENDOR` — USGS delivered classification baseline
+- `dsm` / `chm` — surface model and canopy/structure height model
+- `density_count_3ft` — per-cell point density + void map
+
+Runs completed, Tucson Mountains tile (item #10, see below): five SMRF
+parameter iterations, final is `dem_tucson_lastreturn_w33_s0.6_t1.3`.
+
+**`scripts/batch_process.py`** — batch-processes every `.laz` tile in
+`data/raw/` into a DEM + hillshade, reusing `build_pipeline()`/`run()`
+from `run_dem.py` (extended, not duplicated — `build_pipeline()` gained
+an optional `last_return_only` flag and a `stats_dimensions` hook;
+`run()` now raises instead of calling `sys.exit`, so a batch loop can
+catch per-tile failures and continue). Per-tile SMRF parameters come from
+`scripts/tile_params.json`, keyed by filename, with a loud warning for
+any tile not listed (falls back to the flat-desert `_default`, which we
+know from item #10 can silently produce a bad DEM on different terrain).
+Skips tiles whose header CRS isn't EPSG:6405 (logs the actual CRS found,
+does not auto-reproject — reprojection needs a human sanity check, see
+item #10's Z-stayed-in-meters bug). Idempotent by default (skips a tile
+if `dem_<tile_stem>_<tag>.tif` already exists; `--force` overrides).
+Writes per-tile QC to `output/reports/batch_qc.csv`, with column
+definitions in `output/reports/batch_qc_README.md`. Mosaics all
+successfully-processed DEMs into `output/dem/catalog.vrt` (named
+"catalog," not "mosaic" — the tiles aren't spatially adjacent).
 
 ## RESOLVED: roof vs. pad question
 
@@ -258,59 +280,319 @@ Images (currently in session scratchpad only, not yet saved into repo):
 - Wash-crossing zoom, vendor vs. mine, side by side
 - Pivot-field residual histogram + spatial scatter (the banding plot)
 
+## RESOLVED: swath overlap check (item #4 of the original plan)
+
+Split by `PointSourceId`: 4 flight lines. Two dominant, adjacent lines —
+**519** (4,129,283 pts, X 981587–985113) and **600** (3,679,198 pts,
+X 980113–983435) — overlap in a shared band, X 981587–983435 (1,848 ft
+wide, full tile height). Two smaller slivers (518, 601) turned out to be
+fully contained within 519's/600's extents, not independent overlaps.
+Rebuilt each line's ground surface independently with identical
+`w120_s0.15_t1.6` parameters, restricted to the shared band, then
+differenced (`output/dem/diff_swath_600_minus_519.tif`).
+
+| Stat | Value |
+|---|---|
+| Valid overlap cells | 972,708 / 1,026,872 (94.7%) |
+| **Mean (600 − 519)** | **+0.124 ft** |
+| Median | +0.120 ft |
+| Std dev | 0.184 ft |
+| RMSE | 0.222 ft |
+| 16th/84th pct | +0.037 / +0.210 ft |
+| \|diff\| > 0.26 ft | 10.1% of cells |
+
+This is a systematic, one-directional offset, not noise — the spatial map
+shows a near-uniform bias across almost the entire overlap band (heavier
+disagreement along the wash is a separate, expected breakline effect).
+Consistent with a mild vertical calibration/boresight discrepancy between
+flight lines **in the source collection**, not a processing artifact.
+**This explains the diagonal banding from item #3**: that sample box
+(983370–983470) sits at the eastern edge of this same overlap zone, so the
+main DEM's per-cell IDW blend of both lines produces exactly this pattern.
+
+## RESOLVED: NGS control (item #5 of the original plan)
+
+Queried NGS's Data Explorer API (`geodesy.noaa.gov/api/nde/bounds`) for the
+tile bounds (converted to lat/lon: 32.09202–32.10588°N,
+111.01215–110.99587°W). **Zero marks fall inside the tile.** Widened the
+search and checked the four nearest candidates individually via their raw
+datasheets (`/api/nde/pid`):
+
+| Mark | Location vs. tile | Why unusable |
+|---|---|---|
+| SAN XAVIER MISSION (CZ1976) | 430 ft N of tile edge | No published orthometric height |
+| SAN XAVIER MISSION CROSS (CZ1975) | 375 ft N of tile edge | No published orthometric height |
+| X 349 (CZ0166) | 355 ft E of tile edge | `condition: MARK NOT FOUND` since 2009; horizontal position `SCALED` (imprecise) |
+| PA 2 (CZ1835) | ~2,345 ft E, 295 ft N | GOOD condition, but height derived via VERTCON3 (datum-conversion estimate, not direct observation), no published vertical order; also too far away |
+
+**Unit trap caught along the way**: a summarized version of the API
+results initially labeled `orthoHt` as feet. Wrong — `geoidHt` values
+(~-29.5) only make sense as **meters** (matches the known GEOID18
+undulation for southern Arizona, ~-31 m; in feet it'd be far too small).
+All `orthoHt` values from this API are meters.
+
+**Conclusion**: no usable external vertical control exists in or near this
+tile. A true external NVA (per ASPRS Positional Accuracy Standards) would
+require new fieldwork (e.g., a static GPS occupation on PA 2). Stated as a
+scope limitation in the memo, not a data quality failure.
+
+## RESOLVED: point density + void map (item #6 of the original plan)
+
+**Bug caught and fixed first**: PDAL's `writers.gdal` with `output_type:
+count` defaults to a *radius-based* search around each cell center (default
+radius = `resolution * sqrt(2)`), not a clean non-overlapping histogram bin
+— this inflated the first attempt's density by ~6x (23.2 pts/m² vs. the
+tile's known ~3.7 pts/m², which was the tell). Fix: `"binmode": true`,
+which does true per-cell binning. Built from **first returns only**
+(`ReturnNumber[1:1]`), 3 ft cells, aligned to the standard tile grid.
+
+| Stat | Value |
+|---|---|
+| Mean density | 3.697 pts/m² (matches documented ~3.7) |
+| Median density | 2.392 pts/m² |
+| **Void cells (zero returns)** | **2.33%** of tile |
+| Cells below QL2 minimum (2 pts/m²), combined with voids | **19.4%** of tile |
+
+The tile-wide average clears QL2, but nearly 1 in 5 cells locally falls
+short — exactly why a per-cell check matters over an average. Spatially,
+the density map lines up with the item-4 flight-line geometry: the
+519∩600 overlap band is visibly higher-density and almost void-free;
+single-coverage strips on either side run at/below the QL2 floor. Voids
+follow the scanner's oscillating scan-line geometry (gaps between sweeps,
+healed by a second overlapping pass), not the wash or any single feature —
+checked and ruled out a water-related dropout pattern.
+
+Files: `output/dem/density_count_3ft.tif` /
+`density_count_3ft_aligned.tif`.
+
+## RESOLVED: contours (item #7 of the original plan)
+
+`gdal_contour -a elev_ft -i 2.0` on `dem_w120_s0.15_t1.6.tif` →
+`output/contours/contours_2ft_w120_s0.15_t1.6.gpkg`. 12,258 features,
+2492–2650 ft. Visual check against hillshade looks right (hills, wash,
+pivot-field grade all track cleanly). Dense contour clutter in the NE/SE
+ag fields is real 2 ft-scale micro-terrain (crop rows) at this fine
+interval, not a defect.
+
+## RESOLVED: DSM and CHM (item #8 of the original plan)
+
+DSM: all non-noise points (`Classification![7:7]`), max elevation per
+3 ft cell, **`binmode: true`** (same fix as item #6 — the default
+radius search would smear building/vegetation edges into neighboring
+cells). CHM = DSM − DEM (`w120_s0.15_t1.6_aligned`), both grids aligned to
+the standard tile extent first.
+
+| Stat | Value |
+|---|---|
+| Mean | 0.92 ft |
+| Median | 0.09 ft |
+| Std dev | 3.20 ft |
+| Min / max | −8.36 / 72.87 ft |
+| > 8 ft (roof-scale) | 5.04% of cells |
+| < 0 ft | 22.2% (expected — DSM/DEM are independently gridded, minor mismatch at edges, same effect as the item-2 wash-crossing artifact) |
+
+Median near zero matches the tile's documented near-absent canopy. Visual
+check: dark rectangular CHM outlines line up exactly with the residential
+building footprints that show as voids in the ground hillshade (confirms
+those are genuine roofs — distinct from the graded pad investigated in
+item #1). A strong CHM line follows the wash (riparian vegetation, as
+expected), and the ag fields show almost nothing. Max value (72.87 ft) is
+almost certainly a pole or similar point feature, not investigated further.
+
+## DONE: QC memo (item #9 of the original plan)
+
+Written to `output/reports/qc_memo.md`. Covers method/parameters, the
+accuracy assessment (items #2–6), the roof/pad investigation (item #1),
+deliverables list, and a limitations section (vertical datum, no external
+control, the flight-line offset, uneven point coverage). **Note**:
+`output/reports/` is inside the gitignored `output/` tree, so this file is
+currently untracked and invisible to git — see Open questions.
+
+## RESOLVED: second tile, harder terrain — Tucson Mountains (item #10)
+
+**Tile**: `USGS_LPC_AZ_PimaCounty_2021_B21_484572.laz` (83.8 MB / 2021
+collection), covering the Wasson Peak vicinity of Tucson Mountain Park.
+Found via the TNM API (`tnmaccess.nationalmap.gov`); picked over a
+same-vintage 2015 tile (which turned out to only clip the range's edge,
+too weak on relief) and a 2011 legacy tile (196 MB, no real advantage).
+Reprojected copy at `data/raw/tucson_mtns_484572_epsg6405.laz`.
+
+**CRS mismatch, caught and fixed**: source tile is NAD83(2011) / UTM Zone
+12N (EPSG:6341) horizontal + NAVD88 height–Geoid18 (EPSG:5703) vertical,
+**entirely in meters** — not this project's EPSG:6405 ft. Reprojected via
+PDAL (`scripts/pipelines/pipe_reproject_484572.json`). First attempt
+silently left Z in meters while X/Y correctly converted to feet — because
+the target CRS (EPSG:6405) has no vertical component, `filters.reprojection`
+had nothing to transform Z against, so it passed through unchanged. Caught
+by checking the output header against expected magnitude, not by assuming
+it worked. Fixed with an explicit `filters.transformation` scale matrix on
+Z. **Second unit subtlety**: EPSG:6405 uses the **international foot**
+(0.3048 m exactly, EPSG:9002), not the US survey foot (0.30480061 m,
+EPSG:9003) this project's docs otherwise call "US survey feet" — conversion
+factor used is `3.280839895`, not `3.280833333`.
+
+**Tile stats after reprojection**: 3,309 × 3,310 ft (~251 acres),
+27,722,077 points (~27.7 pts/m², QL1-class — ~7.5x denser than the original
+tile's QL2 3.7 pts/m²). Raw header showed an absurd 5,144 ft "relief"
+(781–2349 m) — that max was a single classification-18 (high noise) point.
+Excluding noise classes 7/18: real range 2,727.4–3,055.8 ft, **328.4 ft of
+relief** over a much smaller area than the original tile (164 ft over 574
+acres) — meaningfully steeper per unit area, as intended. Also notable:
+this tile's vertical datum **is** explicitly declared (NAVD88, Geoid18) —
+unlike the original tile's blank field; indirectly supports the "presumed
+NAVD88" assumption made there.
+
+**Parameter derivation — measured, not guessed.** Built a probe DEM from
+vendor's own class-2 points and ran `gdaldem slope -p`:
+
+| Percentile | Slope |
+|---|---|
+| Median | 28.0% |
+| p90 | 91.5% |
+| p95 | 114.2% |
+| p99.9 | 192.5% (near-vertical rock faces) |
+
+**Five iterations to a final parameter set** (all pipelines in
+`scripts/pipelines/pipe_tucson_*.json`):
+
+1. `w33_s1.0_t3.3` — window 33 ft (down from 120 ft; no large graded pads
+   here, only sparse vegetation, and a big window in steep terrain lets
+   the surface cut across real ridges/gullies), slope 1.0 (just under
+   measured p90), cell 1.6 ft (down from 3.3 ft, supported by ~7.5x
+   higher point density), threshold 3.3 ft, scalar 1.25. Hillshade showed
+   plausible ridge/gully/trail structure, but a dense fine speckle texture
+   the user identified as **vegetation**.
+2. `w33_s1.0_t1.3` — tightened threshold to 1.3 ft (hypothesis: base
+   vertical tolerance too loose). **No visible change** — ruled threshold
+   out as the controlling lever.
+3. `w33_s0.6_t1.3` (+scalar 0.75) — backed slope off from 1.0 toward the
+   measured *median* (28%), reasoning that the p90 value used to set
+   `slope=1.0` may itself have been inflated by vegetation-on-slope bumps
+   already present in vendor's "ground" points. **Also no visible change**
+   — with window held constant across all three attempts, this pointed at
+   `window` as the actual bottleneck (SMRF's opening can't erode away
+   clusters wider than the window).
+4. `w65_s0.6_t1.3` — widened window to 65 ft. Global raster stats looked
+   unchanged (min/max/mean identical to 3 decimals) — but this was a
+   **measurement artifact**: a direct diff against attempt 1 showed real
+   per-cell changes up to 8.08 ft (mean 0.096 ft). A zoomed 300×300 ft
+   crop comparison showed a marginal reduction in speckle, but the user
+   also noted **loss of real shadow/relief detail** — the wider window
+   was trading away genuine terrain fidelity for a weak vegetation
+   improvement. User confirmed some remaining texture is real rock, not
+   vegetation — geometry-only SMRF tuning can't fully separate small-scale
+   rock texture from sparse vegetation of similar size/height.
+5. **`lastreturn_w33_s0.6_t1.3` — final.** Checked `NumberOfReturns` on
+   this tile: 35.16% multi-return, mean 1.4137 (vs. the original tile's
+   1.023) — real canopy penetration (cacti, palo verde, ironwood), and a
+   physically-grounded signal instead of pure geometry. Added
+   `filters.returns` (`groups: "last,only"`) before ELM/outlier/SMRF to
+   drop first/intermediate returns (near-certain canopy hits), and reverted
+   window back to 33 ft (recovering detail quality, since SMRF no longer
+   carries the full vegetation-rejection load alone). Result: shadow/detail
+   crispness back to attempt-1 quality; fine speckle persisted at similar
+   density. **User-confirmed conclusion**: this is expected, not a
+   failure — a solid single-return cactus hit is physically indistinguishable
+   from a solid rock hit by return-count alone. Further separation would
+   need intensity-based classification or co-registered NDVI/multispectral
+   data, outside this project's scope. **Stopped here as a defensible,
+   documented stopping point** ("Matches my read" — user agreed).
+
+**Final parameters**: `filters.returns groups=last,only` →
+ELM (cell 33 ft, threshold 3.3 ft) → statistical outlier (mean_k 8,
+multiplier 3.0) → SMRF (cell 1.6 ft, window 33 ft, slope 0.6,
+threshold 1.3 ft, scalar 0.75) → class-2 filter → IDW raster, 1.6 ft.
+
+| Parameter | Original (flat desert) | Tucson (steep, vegetated) | Why |
+|---|---|---|---|
+| window | 120 ft | 33 ft | No large pads here; big window cuts across real relief |
+| slope | 0.15 | 0.6 | Measured terrain far exceeds flat-desert norms (median 28%, p90 91.5%) |
+| threshold | 1.6 ft | 1.3 ft | Tighter, to reject low vegetation given slope already extends reach |
+| scalar | 1.25 | 0.75 | Slows tolerance growth, compensating for higher slope |
+| cell | 3.3 ft | 1.6 ft | ~7.5x higher point density supports finer resolution |
+| pre-filter | none | last/single-return only | 35.16% multi-return vs. 1.023 mean on original — real canopy signal exploited |
+
+Deliverables: `output/dem/dem_tucson_lastreturn_w33_s0.6_t1.3.tif`,
+`output/hillshade/hs_tucson_lastreturn_w33_s0.6_t1.3.tif`.
+
+## Known Limitations
+
+**Tile-boundary edge effects (SMRF, not buffered).** SMRF's ground
+classification degrades near a tile's edge, within roughly one `window` of
+the boundary, because points there lack full neighborhood context —
+whatever's just outside the tile simply doesn't exist in that pipeline
+run. The correct fix is buffering: pull in a margin of points from
+adjacent tiles, classify with the margin included, then crop back to the
+true tile boundary before writing output. This is not implemented —
+this project currently has zero pairs of spatially-adjacent tiles (San
+Xavier and Tucson Mountains don't touch), so there's nothing to buffer
+from and no way to test the logic. Writing speculative, untestable
+buffering code seems worse than being direct about the gap. Documented
+here and in the QC memo; the concrete design for later: a spatial index
+over available tiles' bounds, read-neighbor-and-crop, activated via an
+optional `--buffer-ft` flag once this project actually has adjacent tiles
+to test against.
+
 ## Open questions
 
-**Vertical datum** — still unconfirmed. Presumed NAVD88 ft; needs checking
-against USGS project metadata before the memo states it as fact.
+**Vertical datum (original tile)** — still unconfirmed. Presumed NAVD88
+ft; needs checking against USGS project metadata before the memo states it
+as fact. (The Tucson tile's header, by contrast, declares NAVD88/Geoid18
+explicitly — supporting evidence, not proof, for the original tile.)
+
+**`output/reports/qc_memo.md` is gitignored** — `output/` is fully
+excluded, which makes sense for regenerable rasters but not for a
+hand-authored deliverable. Asked the user whether to carve out a
+`output/reports/` exception; not yet answered.
+
+**Rock vs. solid-return vegetation on the Tucson tile** — not resolved,
+and likely not resolvable with this data. Documented as a stated
+limitation rather than chased further (see item #10).
 
 ## Next steps, in order
 
-1. ~~Resolve the roof/pad question~~ — **DONE**, see above.
-2. ~~Fix grid alignment, produce vendor-minus-mine difference raster, RMSE~~
-   — **DONE**, see above. (Histogram done too, originally listed as part of
-   step 2's "and a histogram of residuals" — done.)
-3. ~~Internal consistency check on a known-flat surface~~ — **DONE**, see
-   above.
-4. **Swath overlap check** — split by `PointSourceId`, build per-flight-line
-   DEMs, difference them in the overlap. Disagreement beyond ~8 cm (~0.26 ft)
-   indicates boresight/calibration error in the source collection.
-   Self-contained, no external data needed. **Elevated in priority** — the
-   diagonal banding seen in the item-3 residual map is a live hint this may
-   show something real.
-5. **NGS control** — pull published monuments inside the tile bounds,
-   extract DEM values, compute NVA per the ASPRS Positional Accuracy
-   Standards. This is the only true external check.
-6. **Point density raster** — per-cell, NOT a global average (averages hide
-   voids). Plus an explicit void map.
-7. **Contours** at 2 ft interval.
-8. **DSM and CHM** for completeness.
-9. **QC memo**, 2 pages: method, parameters, accuracy statement, vendor
-   comparison, and an honest account of the roof/pad investigation. Draft
-   numbers for this are now all sitting in this file — the memo mainly
-   needs writing up, not new analysis, except for whatever item 4 turns up.
-10. **Second tile, harder terrain** — Tucson Mountains for relief or a
-    riparian corridor for vegetation. Same pipeline, different parameters,
-    with a written justification for the changes. Demonstrating adaptation
-    to terrain is the point.
+All ten original items are done:
+
+1. ~~Roof vs. pad~~ — **DONE**
+2. ~~Grid alignment fix + vendor diff/RMSE~~ — **DONE**
+3. ~~Internal consistency (flat surface)~~ — **DONE**
+4. ~~Swath overlap check~~ — **DONE**
+5. ~~NGS control~~ — **DONE** (concluded: none usable)
+6. ~~Point density + void map~~ — **DONE**
+7. ~~Contours~~ — **DONE**
+8. ~~DSM and CHM~~ — **DONE**
+9. ~~QC memo~~ — **DONE** (pending: gitignore decision above)
+10. ~~Second tile, harder terrain~~ — **DONE**
+
+Remaining loose ends, not blocking:
+- Decide the `output/reports/` gitignore question above.
+- Verify the original tile's vertical datum against USGS project metadata
+  if this deliverable needs to move from "presumed" to "confirmed."
+- Optional: fold the Tucson tile's findings into a second QC memo /
+  addendum, if the portfolio wants that tile written up formally too.
+- Optional: the CHM's 72.87 ft max value (original tile) was never
+  identified — likely a pole, not investigated.
 
 ## Housekeeping / repo state
 
-- Six stray empty junk files (`Singleband`, `real`, `they`, `tuning`, `you`,
-  `your` — accidental artifacts from an earlier botched command) were
-  deleted and a `.gitignore` (`data/raw/`, `output/`, `.claude/`) was added.
-  **Committed** as `fb7b0cd`.
-- `scripts/compare_vendor.py` has the grid-alignment fix in the working
-  tree. **Not yet committed.**
-- `.claude/settings.local.json` has a local permissions change in the
-  working tree. **Not committed** — a commit of this file was attempted and
-  the user rejected the tool call, so it's intentionally left uncommitted;
-  don't re-attempt without asking.
-- All PNG figures generated during analysis this session live only in the
-  session's temp scratchpad directory, not in the repo. If they should be
-  kept for the QC memo, they need to be regenerated (scripts described
-  above) or copied into `output/reports/images/` — ask before doing this,
-  since the last attempt to copy files into the repo was interrupted by the
-  user.
+Commits this project, in order: `503a6a2` (initial), `f42b6d8` (remove
+data/outputs from version control), `fb7b0cd` (stray junk files removed +
+`.gitignore` added), `221a2f5` (grid-alignment fix + first `CLAUDE.md`),
+`8013a91` (local permissions allowlist), `4b96512` (swath-overlap
+pipelines), `64ec83c` (density/DSM pipelines + Tucson parameter-search
+pipelines). Working tree was clean as of the last commit above; this
+`CLAUDE.md` update itself is not yet committed as of this writing.
+
+- `data/raw/` now holds three files, all gitignored: the original tile,
+  the raw downloaded Tucson tile (`USGS_LPC_AZ_PimaCounty_2021_B21_484572.laz`,
+  meters/UTM12N, kept as the untouched source), and the reprojected
+  working copy (`tucson_mtns_484572_epsg6405.laz`, EPSG:6405 ft).
+- All output rasters/hillshades (original tile + Tucson tile) and the QC
+  memo live under `output/`, entirely gitignored — see the Open questions
+  entry above about carving out an exception for `output/reports/`.
+- Session PNG figures (hillshades, diff maps, histograms, comparison
+  crops) live only in the session scratchpad, not the repo, unless
+  explicitly sent to the user as deliverable images.
 
 ## How I want to work
 - Compute the numbers; I'll judge whether they're plausible. You can't see

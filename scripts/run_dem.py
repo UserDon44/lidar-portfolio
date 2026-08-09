@@ -24,45 +24,73 @@ HS_DIR = ROOT / "output" / "hillshade"
 PIPE_DIR = ROOT / "scripts" / "pipelines"
 
 
-def build_pipeline(tile, out_tif, window, slope, threshold, scalar, cell, res):
-    """Return the PDAL pipeline as a dict."""
-    return {
-        "pipeline": [
-            {"type": "readers.las", "filename": str(tile).replace("\\", "/")},
-            # wipe vendor classification - we classify from scratch
-            {"type": "filters.assign", "assignment": "Classification[:]=0"},
-            # low-outlier removal (craters)
-            {"type": "filters.elm", "cell": 33.0, "threshold": 3.3},
-            # statistical outlier removal -> marks class 7
-            {"type": "filters.outlier", "method": "statistical",
-             "mean_k": 8, "multiplier": 3.0},
-            # ground classification
-            {"type": "filters.smrf", "cell": cell, "window": window,
-             "slope": slope, "threshold": threshold, "scalar": scalar,
-             "ignore": "Classification[7:7]"},
-            # keep ground only
-            {"type": "filters.range", "limits": "Classification[2:2]"},
-            # rasterize
-            {"type": "writers.gdal", "filename": str(out_tif).replace("\\", "/"),
-             "resolution": res, "output_type": "idw",
-             "window_size": 6, "nodata": -9999},
-        ]
-    }
+def build_pipeline(tile, out_tif, window, slope, threshold, scalar, cell, res,
+                    last_return_only=False, stats_dimensions=None):
+    """Return the PDAL pipeline as a dict.
+
+    last_return_only: if True, insert a filters.returns stage (groups=
+        last,only) before ELM/outlier/SMRF, discarding first/intermediate
+        returns (near-certain vegetation-canopy hits). Needed on tiles with
+        real canopy penetration -- see the Tucson Mountains tile in
+        CLAUDE.md item #10. Leaves the default (flat, sparse-vegetation
+        tile) pipeline unchanged.
+
+    stats_dimensions: if given (e.g. "Z"), insert a filters.stats stage
+        after the ground-only filter, non-destructively reporting
+        count/min/max/mean for those dimensions in the pipeline's
+        --metadata output. Used by the batch processor to get
+        ground-point count and ground-only Z range without a second
+        read of the file.
+    """
+    stages = [{"type": "readers.las", "filename": str(tile).replace("\\", "/")}]
+    # wipe vendor classification - we classify from scratch
+    stages.append({"type": "filters.assign", "assignment": "Classification[:]=0"})
+    if last_return_only:
+        # drop first/intermediate returns of multi-return pulses -- these
+        # are near-certain vegetation canopy hits, not ground candidates
+        stages.append({"type": "filters.returns", "groups": "last,only"})
+    # low-outlier removal (craters)
+    stages.append({"type": "filters.elm", "cell": 33.0, "threshold": 3.3})
+    # statistical outlier removal -> marks class 7
+    stages.append({"type": "filters.outlier", "method": "statistical",
+                    "mean_k": 8, "multiplier": 3.0})
+    # ground classification
+    stages.append({"type": "filters.smrf", "cell": cell, "window": window,
+                    "slope": slope, "threshold": threshold, "scalar": scalar,
+                    "ignore": "Classification[7:7]"})
+    # keep ground only
+    stages.append({"type": "filters.range", "limits": "Classification[2:2]"})
+    if stats_dimensions:
+        stages.append({"type": "filters.stats", "dimensions": stats_dimensions})
+    # rasterize
+    stages.append({"type": "writers.gdal", "filename": str(out_tif).replace("\\", "/"),
+                    "resolution": res, "output_type": "idw",
+                    "window_size": 6, "nodata": -9999})
+    return {"pipeline": stages}
 
 
 def run(cmd):
-    """Run a command, surface errors clearly."""
+    """Run a command, surface errors clearly.
+
+    Raises RuntimeError on failure instead of exiting the process, so
+    callers (e.g. a batch loop processing many tiles) can catch it and
+    continue. main() below catches it and exits(1), preserving this
+    script's original single-tile CLI behavior.
+    """
     print(f"  $ {' '.join(str(c) for c in cmd)}")
     result = subprocess.run(cmd, capture_output=True, text=True)
     if result.returncode != 0:
-        print("  FAILED:")
-        print(result.stderr)
-        sys.exit(1)
+        raise RuntimeError(
+            f"command failed ({result.returncode}): {' '.join(str(c) for c in cmd)}\n"
+            f"{result.stderr}"
+        )
     return result
 
 
 def main():
     p = argparse.ArgumentParser(description="Build bare-earth DEM via PDAL SMRF")
+    p.add_argument("--tile", type=Path, default=TILE,
+                   help=f"input LAZ tile (default {TILE.name})")
     p.add_argument("--window", type=float, default=120.0,
                    help="max non-ground object size, FEET (default 120)")
     p.add_argument("--slope", type=float, default=0.15,
@@ -75,6 +103,9 @@ def main():
                    help="SMRF cell size, FEET (default 3.3)")
     p.add_argument("--res", type=float, default=3.0,
                    help="output DEM resolution, FEET (default 3.0)")
+    p.add_argument("--last-return-only", action="store_true",
+                   help="drop first/intermediate returns before classifying "
+                        "(use on tiles with real canopy penetration)")
     args = p.parse_args()
 
     for d in (DEM_DIR, HS_DIR, PIPE_DIR):
@@ -87,20 +118,26 @@ def main():
     pipe_json = PIPE_DIR / f"pipe_{tag}.json"
 
     print(f"\n=== {tag} ===")
+    print(f"  tile={args.tile.name}")
     print(f"  window={args.window} ft  slope={args.slope}  "
           f"threshold={args.threshold} ft  res={args.res} ft")
 
     # write pipeline (keeps a record of exactly what was run)
-    pipeline = build_pipeline(TILE, dem_tif, args.window, args.slope,
-                              args.threshold, args.scalar, args.cell, args.res)
+    pipeline = build_pipeline(args.tile, dem_tif, args.window, args.slope,
+                              args.threshold, args.scalar, args.cell, args.res,
+                              last_return_only=args.last_return_only)
     pipe_json.write_text(json.dumps(pipeline, indent=2))
 
-    print("\n[1/2] Classifying ground and rasterizing...")
-    run(["pdal", "pipeline", str(pipe_json)])
+    try:
+        print("\n[1/2] Classifying ground and rasterizing...")
+        run(["pdal", "pipeline", str(pipe_json)])
 
-    print("[2/2] Generating hillshade...")
-    run(["gdaldem", "hillshade", str(dem_tif), str(hs_tif),
-         "-az", "315", "-alt", "45"])
+        print("[2/2] Generating hillshade...")
+        run(["gdaldem", "hillshade", str(dem_tif), str(hs_tif),
+             "-az", "315", "-alt", "45"])
+    except RuntimeError as e:
+        print(f"  FAILED:\n{e}")
+        sys.exit(1)
 
     print(f"\nDone.")
     print(f"  DEM:       {dem_tif}")

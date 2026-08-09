@@ -1,0 +1,253 @@
+{
+  "stages":
+  {
+    "filters.assign":
+    {
+    },
+    "filters.elm":
+    {
+    },
+    "filters.outlier":
+    {
+    },
+    "filters.range":
+    {
+    },
+    "filters.returns":
+    {
+    },
+    "filters.smrf":
+    {
+    },
+    "filters.stats":
+    {
+      "statistic":
+      [
+        {
+          "average": 2842.555871,
+          "count": 21216254,
+          "maximum": 3033.56,
+          "minimum": 2727.4,
+          "name": "Z",
+          "position": 0,
+          "stddev": 60.41065013,
+          "variance": 3649.446649
+        }
+      ]
+    },
+    "readers.las":
+    {
+      "comp_spatialreference": "PROJCS[\"NAD83(2011) / Arizona Central (ft)\",GEOGCS[\"NAD83(2011)\",DATUM[\"NAD83_National_Spatial_Reference_System_2011\",SPHEROID[\"GRS 1980\",6378137,298.257222101,AUTHORITY[\"EPSG\",\"7019\"]],AUTHORITY[\"EPSG\",\"1116\"]],PRIMEM[\"Greenwich\",0,AUTHORITY[\"EPSG\",\"8901\"]],UNIT[\"degree\",0.0174532925199433,AUTHORITY[\"EPSG\",\"9122\"]],AUTHORITY[\"EPSG\",\"6318\"]],PROJECTION[\"Transverse_Mercator\"],PARAMETER[\"latitude_of_origin\",31],PARAMETER[\"central_meridian\",-111.916666666667],PARAMETER[\"scale_factor\",0.9999],PARAMETER[\"false_easting\",700000],PARAMETER[\"false_northing\",0],UNIT[\"foot\",0.3048,AUTHORITY[\"EPSG\",\"9002\"]],AXIS[\"Easting\",EAST],AXIS[\"Northing\",NORTH],AUTHORITY[\"EPSG\",\"6405\"]]",
+      "compressed": true,
+      "copc": false,
+      "count": 27722077,
+      "creation_doy": 221,
+      "creation_year": 2026,
+      "dataformat_id": 7,
+      "dataoffset": 1929,
+      "filesource_id": 0,
+      "global_encoding": 16,
+      "global_encoding_base64": "EAA=",
+      "header_size": 375,
+      "major_version": 1,
+      "maxx": 934900.45,
+      "maxy": 473783.82,
+      "maxz": 7706.96,
+      "minor_version": 4,
+      "minx": 931591.25,
+      "miny": 470474,
+      "minz": 2562.63,
+      "offset_x": 0,
+      "offset_y": 0,
+      "offset_z": 0,
+      "point_length": 36,
+      "project_id": "00000000-0000-0000-0000-000000000000",
+      "scale_x": 0.01,
+      "scale_y": 0.01,
+      "scale_z": 0.01,
+      "software_id": "PDAL 2.10.0 (Releas)",
+      "spatialreference": "PROJCS[\"NAD83(2011) / Arizona Central (ft)\",GEOGCS[\"NAD83(2011)\",DATUM[\"NAD83_National_Spatial_Reference_System_2011\",SPHEROID[\"GRS 1980\",6378137,298.257222101,AUTHORITY[\"EPSG\",\"7019\"]],AUTHORITY[\"EPSG\",\"1116\"]],PRIMEM[\"Greenwich\",0,AUTHORITY[\"EPSG\",\"8901\"]],UNIT[\"degree\",0.0174532925199433,AUTHORITY[\"EPSG\",\"9122\"]],AUTHORITY[\"EPSG\",\"6318\"]],PROJECTION[\"Transverse_Mercator\"],PARAMETER[\"latitude_of_origin\",31],PARAMETER[\"central_meridian\",-111.916666666667],PARAMETER[\"scale_factor\",0.9999],PARAMETER[\"false_easting\",700000],PARAMETER[\"false_northing\",0],UNIT[\"foot\",0.3048,AUTHORITY[\"EPSG\",\"9002\"]],AXIS[\"Easting\",EAST],AXIS[\"Northing\",NORTH],AUTHORITY[\"EPSG\",\"6405\"]]",
+      "srs":
+      {
+        "compoundwkt": "PROJCS[\"NAD83(2011) / Arizona Central (ft)\",GEOGCS[\"NAD83(2011)\",DATUM[\"NAD83_National_Spatial_Reference_System_2011\",SPHEROID[\"GRS 1980\",6378137,298.257222101,AUTHORITY[\"EPSG\",\"7019\"]],AUTHORITY[\"EPSG\",\"1116\"]],PRIMEM[\"Greenwich\",0,AUTHORITY[\"EPSG\",\"8901\"]],UNIT[\"degree\",0.0174532925199433,AUTHORITY[\"EPSG\",\"9122\"]],AUTHORITY[\"EPSG\",\"6318\"]],PROJECTION[\"Transverse_Mercator\"],PARAMETER[\"latitude_of_origin\",31],PARAMETER[\"central_meridian\",-111.916666666667],PARAMETER[\"scale_factor\",0.9999],PARAMETER[\"false_easting\",700000],PARAMETER[\"false_northing\",0],UNIT[\"foot\",0.3048,AUTHORITY[\"EPSG\",\"9002\"]],AXIS[\"Easting\",EAST],AXIS[\"Northing\",NORTH],AUTHORITY[\"EPSG\",\"6405\"]]",
+        "horizontal": "PROJCS[\"NAD83(2011) / Arizona Central (ft)\",GEOGCS[\"NAD83(2011)\",DATUM[\"NAD83_National_Spatial_Reference_System_2011\",SPHEROID[\"GRS 1980\",6378137,298.257222101,AUTHORITY[\"EPSG\",\"7019\"]],AUTHORITY[\"EPSG\",\"1116\"]],PRIMEM[\"Greenwich\",0,AUTHORITY[\"EPSG\",\"8901\"]],UNIT[\"degree\",0.0174532925199433,AUTHORITY[\"EPSG\",\"9122\"]],AUTHORITY[\"EPSG\",\"6318\"]],PROJECTION[\"Transverse_Mercator\"],PARAMETER[\"latitude_of_origin\",31],PARAMETER[\"central_meridian\",-111.916666666667],PARAMETER[\"scale_factor\",0.9999],PARAMETER[\"false_easting\",700000],PARAMETER[\"false_northing\",0],UNIT[\"foot\",0.3048,AUTHORITY[\"EPSG\",\"9002\"]],AXIS[\"Easting\",EAST],AXIS[\"Northing\",NORTH],AUTHORITY[\"EPSG\",\"6405\"]]",
+        "isgeocentric": false,
+        "isgeographic": false,
+        "json": {
+  "type": "ProjectedCRS",
+  "name": "NAD83(2011) / Arizona Central (ft)",
+  "base_crs": {
+    "type": "GeographicCRS",
+    "name": "NAD83(2011)",
+    "datum": {
+      "type": "GeodeticReferenceFrame",
+      "name": "NAD83 (National Spatial Reference System 2011)",
+      "ellipsoid": {
+        "name": "GRS 1980",
+        "semi_major_axis": 6378137,
+        "inverse_flattening": 298.257222101
+      }
+    },
+    "coordinate_system": {
+      "subtype": "ellipsoidal",
+      "axis": [
+        {
+          "name": "Geodetic latitude",
+          "abbreviation": "Lat",
+          "direction": "north",
+          "unit": "degree"
+        },
+        {
+          "name": "Geodetic longitude",
+          "abbreviation": "Lon",
+          "direction": "east",
+          "unit": "degree"
+        }
+      ]
+    },
+    "id": {
+      "authority": "EPSG",
+      "code": 6318
+    }
+  },
+  "conversion": {
+    "name": "unnamed",
+    "method": {
+      "name": "Transverse Mercator",
+      "id": {
+        "authority": "EPSG",
+        "code": 9807
+      }
+    },
+    "parameters": [
+      {
+        "name": "Latitude of natural origin",
+        "value": 31,
+        "unit": "degree",
+        "id": {
+          "authority": "EPSG",
+          "code": 8801
+        }
+      },
+      {
+        "name": "Longitude of natural origin",
+        "value": -111.916666666667,
+        "unit": "degree",
+        "id": {
+          "authority": "EPSG",
+          "code": 8802
+        }
+      },
+      {
+        "name": "Scale factor at natural origin",
+        "value": 0.9999,
+        "unit": "unity",
+        "id": {
+          "authority": "EPSG",
+          "code": 8805
+        }
+      },
+      {
+        "name": "False easting",
+        "value": 700000,
+        "unit": {
+          "type": "LinearUnit",
+          "name": "foot",
+          "conversion_factor": 0.3048
+        },
+        "id": {
+          "authority": "EPSG",
+          "code": 8806
+        }
+      },
+      {
+        "name": "False northing",
+        "value": 0,
+        "unit": {
+          "type": "LinearUnit",
+          "name": "foot",
+          "conversion_factor": 0.3048
+        },
+        "id": {
+          "authority": "EPSG",
+          "code": 8807
+        }
+      }
+    ]
+  },
+  "coordinate_system": {
+    "subtype": "Cartesian",
+    "axis": [
+      {
+        "name": "Easting",
+        "abbreviation": "",
+        "direction": "east",
+        "unit": {
+          "type": "LinearUnit",
+          "name": "foot",
+          "conversion_factor": 0.3048
+        }
+      },
+      {
+        "name": "Northing",
+        "abbreviation": "",
+        "direction": "north",
+        "unit": {
+          "type": "LinearUnit",
+          "name": "foot",
+          "conversion_factor": 0.3048
+        }
+      }
+    ]
+  },
+  "id": {
+    "authority": "EPSG",
+    "code": 6405
+  }
+},
+        "prettycompoundwkt": "PROJCS[\"NAD83(2011) / Arizona Central (ft)\",\n    GEOGCS[\"NAD83(2011)\",\n        DATUM[\"NAD83_National_Spatial_Reference_System_2011\",\n            SPHEROID[\"GRS 1980\",6378137,298.257222101,\n                AUTHORITY[\"EPSG\",\"7019\"]],\n            AUTHORITY[\"EPSG\",\"1116\"]],\n        PRIMEM[\"Greenwich\",0,\n            AUTHORITY[\"EPSG\",\"8901\"]],\n        UNIT[\"degree\",0.0174532925199433,\n            AUTHORITY[\"EPSG\",\"9122\"]],\n        AUTHORITY[\"EPSG\",\"6318\"]],\n    PROJECTION[\"Transverse_Mercator\"],\n    PARAMETER[\"latitude_of_origin\",31],\n    PARAMETER[\"central_meridian\",-111.916666666667],\n    PARAMETER[\"scale_factor\",0.9999],\n    PARAMETER[\"false_easting\",700000],\n    PARAMETER[\"false_northing\",0],\n    UNIT[\"foot\",0.3048,\n        AUTHORITY[\"EPSG\",\"9002\"]],\n    AXIS[\"Easting\",EAST],\n    AXIS[\"Northing\",NORTH],\n    AUTHORITY[\"EPSG\",\"6405\"]]",
+        "prettywkt": "PROJCS[\"NAD83(2011) / Arizona Central (ft)\",\n    GEOGCS[\"NAD83(2011)\",\n        DATUM[\"NAD83_National_Spatial_Reference_System_2011\",\n            SPHEROID[\"GRS 1980\",6378137,298.257222101,\n                AUTHORITY[\"EPSG\",\"7019\"]],\n            AUTHORITY[\"EPSG\",\"1116\"]],\n        PRIMEM[\"Greenwich\",0,\n            AUTHORITY[\"EPSG\",\"8901\"]],\n        UNIT[\"degree\",0.0174532925199433,\n            AUTHORITY[\"EPSG\",\"9122\"]],\n        AUTHORITY[\"EPSG\",\"6318\"]],\n    PROJECTION[\"Transverse_Mercator\"],\n    PARAMETER[\"latitude_of_origin\",31],\n    PARAMETER[\"central_meridian\",-111.916666666667],\n    PARAMETER[\"scale_factor\",0.9999],\n    PARAMETER[\"false_easting\",700000],\n    PARAMETER[\"false_northing\",0],\n    UNIT[\"foot\",0.3048,\n        AUTHORITY[\"EPSG\",\"9002\"]],\n    AXIS[\"Easting\",EAST],\n    AXIS[\"Northing\",NORTH],\n    AUTHORITY[\"EPSG\",\"6405\"]]",
+        "proj4": "+proj=tmerc +lat_0=31 +lon_0=-111.916666666667 +k=0.9999 +x_0=213360 +y_0=0 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=ft +no_defs",
+        "units":
+        {
+          "horizontal": "foot",
+          "vertical": ""
+        },
+        "vertical": "",
+        "wkt": "PROJCS[\"NAD83(2011) / Arizona Central (ft)\",GEOGCS[\"NAD83(2011)\",DATUM[\"NAD83_National_Spatial_Reference_System_2011\",SPHEROID[\"GRS 1980\",6378137,298.257222101,AUTHORITY[\"EPSG\",\"7019\"]],AUTHORITY[\"EPSG\",\"1116\"]],PRIMEM[\"Greenwich\",0,AUTHORITY[\"EPSG\",\"8901\"]],UNIT[\"degree\",0.0174532925199433,AUTHORITY[\"EPSG\",\"9122\"]],AUTHORITY[\"EPSG\",\"6318\"]],PROJECTION[\"Transverse_Mercator\"],PARAMETER[\"latitude_of_origin\",31],PARAMETER[\"central_meridian\",-111.916666666667],PARAMETER[\"scale_factor\",0.9999],PARAMETER[\"false_easting\",700000],PARAMETER[\"false_northing\",0],UNIT[\"foot\",0.3048,AUTHORITY[\"EPSG\",\"9002\"]],AXIS[\"Easting\",EAST],AXIS[\"Northing\",NORTH],AUTHORITY[\"EPSG\",\"6405\"]]"
+      },
+      "system_id": "PDAL",
+      "vlr_0":
+      {
+        "data": "UFJPSkNTWyJOQUQ4MygyMDExKSAvIEFyaXpvbmEgQ2VudHJhbCAoZnQpIixHRU9HQ1NbIk5BRDgzKDIwMTEpIixEQVRVTVsiTkFEODNfTmF0aW9uYWxfU3BhdGlhbF9SZWZlcmVuY2VfU3lzdGVtXzIwMTEiLFNQSEVST0lEWyJHUlMgMTk4MCIsNjM3ODEzNywyOTguMjU3MjIyMTAxLEFVVEhPUklUWVsiRVBTRyIsIjcwMTkiXV0sQVVUSE9SSVRZWyJFUFNHIiwiMTExNiJdXSxQUklNRU1bIkdyZWVud2ljaCIsMCxBVVRIT1JJVFlbIkVQU0ciLCI4OTAxIl1dLFVOSVRbImRlZ3JlZSIsMC4wMTc0NTMyOTI1MTk5NDMzLEFVVEhPUklUWVsiRVBTRyIsIjkxMjIiXV0sQVVUSE9SSVRZWyJFUFNHIiwiNjMxOCJdXSxQUk9KRUNUSU9OWyJUcmFuc3ZlcnNlX01lcmNhdG9yIl0sUEFSQU1FVEVSWyJsYXRpdHVkZV9vZl9vcmlnaW4iLDMxXSxQQVJBTUVURVJbImNlbnRyYWxfbWVyaWRpYW4iLC0xMTEuOTE2NjY2NjY2NjY3XSxQQVJBTUVURVJbInNjYWxlX2ZhY3RvciIsMC45OTk5XSxQQVJBTUVURVJbImZhbHNlX2Vhc3RpbmciLDcwMDAwMF0sUEFSQU1FVEVSWyJmYWxzZV9ub3J0aGluZyIsMF0sVU5JVFsiZm9vdCIsMC4zMDQ4LEFVVEhPUklUWVsiRVBTRyIsIjkwMDIiXV0sQVhJU1siRWFzdGluZyIsRUFTVF0sQVhJU1siTm9ydGhpbmciLE5PUlRIXSxBVVRIT1JJVFlbIkVQU0ciLCI2NDA1Il1dAA==",
+        "description": "OGC Transformation Record",
+        "record_id": 2112,
+        "user_id": "LASF_Projection"
+      },
+      "vlr_1":
+      {
+        "data": "UFJPSkNTWyJOQUQ4MygyMDExKSAvIEFyaXpvbmEgQ2VudHJhbCAoZnQpIixHRU9HQ1NbIk5BRDgzKDIwMTEpIixEQVRVTVsiTkFEODNfTmF0aW9uYWxfU3BhdGlhbF9SZWZlcmVuY2VfU3lzdGVtXzIwMTEiLFNQSEVST0lEWyJHUlMgMTk4MCIsNjM3ODEzNywyOTguMjU3MjIyMTAxLEFVVEhPUklUWVsiRVBTRyIsIjcwMTkiXV0sQVVUSE9SSVRZWyJFUFNHIiwiMTExNiJdXSxQUklNRU1bIkdyZWVud2ljaCIsMCxBVVRIT1JJVFlbIkVQU0ciLCI4OTAxIl1dLFVOSVRbImRlZ3JlZSIsMC4wMTc0NTMyOTI1MTk5NDMzLEFVVEhPUklUWVsiRVBTRyIsIjkxMjIiXV0sQVVUSE9SSVRZWyJFUFNHIiwiNjMxOCJdXSxQUk9KRUNUSU9OWyJUcmFuc3ZlcnNlX01lcmNhdG9yIl0sUEFSQU1FVEVSWyJsYXRpdHVkZV9vZl9vcmlnaW4iLDMxXSxQQVJBTUVURVJbImNlbnRyYWxfbWVyaWRpYW4iLC0xMTEuOTE2NjY2NjY2NjY3XSxQQVJBTUVURVJbInNjYWxlX2ZhY3RvciIsMC45OTk5XSxQQVJBTUVURVJbImZhbHNlX2Vhc3RpbmciLDcwMDAwMF0sUEFSQU1FVEVSWyJmYWxzZV9ub3J0aGluZyIsMF0sVU5JVFsiZm9vdCIsMC4zMDQ4LEFVVEhPUklUWVsiRVBTRyIsIjkwMDIiXV0sQVhJU1siRWFzdGluZyIsRUFTVF0sQVhJU1siTm9ydGhpbmciLE5PUlRIXSxBVVRIT1JJVFlbIkVQU0ciLCI2NDA1Il1dAA==",
+        "description": "OGR variant of OpenGIS WKT SRS",
+        "record_id": 2112,
+        "user_id": "liblas"
+      },
+      "vlr_2":
+      {
+        "data": "AwAAAAMEAwAAAAAAUMMAAP////////////////////8CAAoAHgADAAsABgADAA==",
+        "description": "http://laszip.org",
+        "record_id": 22204,
+        "user_id": "laszip encoded"
+      }
+    },
+    "writers.gdal":
+    {
+      "filename":
+      [
+        "C:/Users/ryans/lidar-portfolio/output/dem/dem_tucson_mtns_484572_epsg6405_w33_s0.6_t1.3_lastreturn.tif"
+      ],
+      "raster":
+      {
+      }
+    }
+  }
+}
