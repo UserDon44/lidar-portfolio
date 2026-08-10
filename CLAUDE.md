@@ -65,7 +65,13 @@ each new Miniforge Prompt session.
 PDAL 2.10.0 · GDAL 3.12.3 · laspy 2.7.0 + lazrs · numpy · rasterio ·
 geopandas · matplotlib · scipy 1.17.1 · whitebox 2.3.6 (WhiteboxTools
 2.4.0 binary, auto-downloaded on first use — added for the hydrologic
-analysis, item #11; see below).
+analysis, item #11; see below) · pymupdf (local PDF→PNG rendering for
+report QC) · pyvista 0.48.4 + vtk 9.6.2 (3D perspective renders, see
+`scripts/render_3d.py`).
+
+**PyVista off-screen rendering works here** — verified directly, no
+X server or OSMesa setup needed; `pv.Plotter(off_screen=True)` plus
+`.screenshot()` renders correctly on this Windows box.
 
 **Correction**: earlier notes in this file said "QGIS installed
 separately." Checked directly when setting up the hydrology analysis —
@@ -805,15 +811,35 @@ the boundary, because points there lack full neighborhood context —
 whatever's just outside the tile simply doesn't exist in that pipeline
 run. The correct fix is buffering: pull in a margin of points from
 adjacent tiles, classify with the margin included, then crop back to the
-true tile boundary before writing output. This is not implemented —
-this project currently has zero pairs of spatially-adjacent tiles (San
-Xavier and Tucson Mountains don't touch), so there's nothing to buffer
-from and no way to test the logic. Writing speculative, untestable
-buffering code seems worse than being direct about the gap. Documented
-here and in the QC memo; the concrete design for later: a spatial index
-over available tiles' bounds, read-neighbor-and-crop, activated via an
-optional `--buffer-ft` flag once this project actually has adjacent tiles
-to test against.
+true tile boundary before writing output.
+
+**CORRECTION (2026-08-10): the stated reason this was never implemented
+was false, and it went unchallenged for the whole project.** This file
+claimed "this project currently has zero pairs of spatially-adjacent
+tiles… so there's nothing to buffer from and no way to test the logic,"
+and used that to justify not writing the code. That was true only of
+what had *already been downloaded* — never of what was available. All
+eight tiles adjacent to `980398` are public and sitting on the same
+USGS rockyweb path the original tile came from, 29.9–35.5 MB each,
+266 MB for the full ring (verified by HTTP HEAD, 2026-08-10):
+
+| | W | centre | E |
+|---|---|---|---|
+| **N** | 975403 | 980403 | 985403 |
+| **—** | 975398 | **980398** | 985398 |
+| **S** | 975393 | 980393 | 985393 |
+
+The naming scheme is `<easting>_<northing>` in thousands of feet at the
+tile's SW corner, on a 5,000 ft grid — recoverable in one TNM API bbox
+query, which is how the ring above was found. Nobody ran that query;
+the limitation was inherited from the initial download scope and then
+restated in each document as though it were a property of the data.
+
+Now the priority work item, not a limitation: build the unbuffered
+baseline, measure elevation discontinuity across each shared seam,
+implement buffering (spatial index over tile bounds → read
+neighbour-and-crop → optional `--buffer-ft` flag), reprocess, and
+report the before/after seam error as a measured number.
 
 **Rock vs. solid-return vegetation on the Tucson tile is not separable
 with this data.** A solid single-return cactus hit and a solid rock hit

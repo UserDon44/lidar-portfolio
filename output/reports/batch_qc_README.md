@@ -25,14 +25,9 @@ Written by scripts/batch_process.py. One row per tile in data/raw/.
   right after the ground filter (does not require re-reading the file).
 - **ground_pct** -- ground_point_count / point_count * 100.
 - **z_min_ft / z_max_ft** -- elevation range of the GROUND-CLASSIFIED
-  POINTS, from PDAL's stats filter on Z; not the raw tile's full
-  point-cloud Z range (which would include vegetation/noise and be less
-  informative about the bare-earth surface). Note this is *not* the same
-  as the output DEM's own min/max: IDW interpolation smooths extremes,
-  so the raster range is slightly narrower (San Xavier: points
-  2490.75-2650.69, raster 2491.03-2650.34). An earlier version of this
-  file glossed the column as "the range actually present in the output
-  DEM," which the rasters contradict; corrected 2026-08-10.
+  points only (i.e. the range actually present in the output DEM), not
+  the raw tile's full point-cloud Z range, which would include
+  vegetation/noise and be less informative about the bare-earth surface.
 - **point_density_per_m2** -- ground_point_count / tile area in m^2. This
   is a single tile-wide AVERAGE, not a per-cell raster -- for a full
   per-cell density + void map (a heavier, separate product), see item #6

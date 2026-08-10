@@ -22,6 +22,32 @@
     "last_return_only": false
   },
 
+  "_seam_test_comment": "The four entries below are 980398's edge-sharing neighbours (N/S/E/W), downloaded 2026-08-10 for the multi-tile seam-handling experiment. They deliberately carry the SAME parameters as 980398 -- identical values are a requirement of that experiment, not an oversight: any seam discontinuity must be attributable to missing cross-tile neighbourhood context, not to a parameter difference between adjacent runs. Listed explicitly rather than left to fall through to _default so the identity is visible and intentional.",
+
+  "USGS_LPC_Eastern_Pima_County_Lidar_980403.laz": {
+    "_comment": "North neighbour of 980398. Same collection, same flat-to-rolling desert terrain.",
+    "window": 120.0, "slope": 0.15, "threshold": 1.6, "scalar": 1.25,
+    "cell": 3.3, "res": 3.0, "last_return_only": false
+  },
+
+  "USGS_LPC_Eastern_Pima_County_Lidar_980393.laz": {
+    "_comment": "South neighbour of 980398.",
+    "window": 120.0, "slope": 0.15, "threshold": 1.6, "scalar": 1.25,
+    "cell": 3.3, "res": 3.0, "last_return_only": false
+  },
+
+  "USGS_LPC_Eastern_Pima_County_Lidar_985398.laz": {
+    "_comment": "East neighbour of 980398.",
+    "window": 120.0, "slope": 0.15, "threshold": 1.6, "scalar": 1.25,
+    "cell": 3.3, "res": 3.0, "last_return_only": false
+  },
+
+  "USGS_LPC_Eastern_Pima_County_Lidar_975398.laz": {
+    "_comment": "West neighbour of 980398. Note this tile reaches 3,171 ft vs the centre tile's 2,655 ft max -- it includes higher hills, so it exercises the pipeline on steeper ground than the other four.",
+    "window": 120.0, "slope": 0.15, "threshold": 1.6, "scalar": 1.25,
+    "cell": 3.3, "res": 3.0, "last_return_only": false
+  },
+
   "tucson_mtns_484572_epsg6405.laz": {
     "_comment": "Steep terrain (328 ft relief over ~251 acres) with real canopy (35.16% multi-return points, mean NumberOfReturns 1.4137 -- cacti and trees, not sparse desert scrub). Derived this session by measuring terrain slope directly (gdaldem slope -p on a vendor-ground probe DEM: median 28%, p90 91.5%) and then iterating through 5 parameter sets while visually inspecting hillshades -- NOT copied from defaults and NOT guessed. Full derivation story, including two dead-end iterations and the reasoning for the last-return prefilter, is in CLAUDE.md under item #10.",
     "window": 33.0,
