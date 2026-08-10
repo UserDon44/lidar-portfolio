@@ -97,12 +97,18 @@ lidar-portfolio/
                         instead (item #5), concluded no usable in-tile
                         control exists. Left empty deliberately, not todo.
   scripts/             run_dem.py, compare_vendor.py, batch_process.py,
-                        tile_params.json, hydrology_0[1-8]_*.py
+                        tile_params.json, hydrology_0[1-8]_*.py,
+                        render_figures.py
   scripts/pipelines/   auto-generated PDAL JSON, one per run (audit trail)
   output/dem/          DEMs, named by parameter. Gitignored (regenerated).
   output/hillshade/    hillshades, named by parameter. Gitignored.
   output/contours/     2 ft contours (item #7). Gitignored.
   output/hydrology/    fill/flow/streams/watershed (item #11). Gitignored.
+  output/figures/      presentation-quality PNGs for the report (scale
+                        bar, north arrow, unit-labeled legends) — see
+                        "How I want to work" below. Gitignored, same as
+                        other output/ subfolders (regenerable from
+                        render_figures.py + the source rasters).
   output/reports/      QC memo, batch QC CSV — TRACKED (see Housekeeping;
                         this is the one output/ subfolder not gitignored).
   qgis/                project files (not actively used — see QGIS
@@ -172,6 +178,16 @@ extraction/vectorization, watershed delineation, and the final figures.
 Built on WhiteboxTools rather than reusing `run_dem.py`'s PDAL-based
 logic — a different toolkit for a different problem (surface hydrology,
 not point-cloud classification).
+
+**`scripts/render_figures.py`** — presentation-quality figure renderer for
+the report, writing to `output/figures/`. Shared `add_scalebar()` /
+`add_north_arrow()` helpers so every figure looks consistent; every plot
+states units explicitly (International Feet for linear quantities;
+pts/m² for density, since forcing an areal density into feet wouldn't
+make sense — cell size in ft is stated in the caption instead). Currently
+renders 7 figures: vendor-diff, swath-offset, density/QL2, CHM, and three
+hillshades (vendor / w120 / w60). Add new figures here, not as one-off
+scratchpad scripts — see "How I want to work" below for why.
 
 ## RESOLVED: roof vs. pad question
 
@@ -803,3 +819,14 @@ together right after this update (see the session log for the date).
   checks pass perfectly on a surface that is uniformly wrong.
 - Reference the USGS LiDAR Base Specification and ASPRS Positional Accuracy
   Standards by name where relevant — that language belongs in the memo.
+- **Any figure generated for me to look at gets saved to `output/figures/`
+  at the same time it's shown, not left in the session scratchpad.** This
+  was violated for most of this project's history — the vendor-diff,
+  swath-offset, density/void, and CHM figures were all generated, shown,
+  and discussed at length, then existed nowhere when it came time to
+  build the report. The underlying `.tif` data survived (it's a real
+  file); the rendered figure didn't. Scratchpad is temporary by design;
+  `output/figures/` is not. `scripts/render_figures.py` is the reusable
+  home for this — it has shared scale-bar/north-arrow helpers so every
+  figure looks consistent; add new figures to it rather than writing a
+  one-off scratchpad script.
