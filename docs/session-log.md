@@ -202,6 +202,59 @@ inside that range, while Tucson's vegetation/rock texture apparently
 converges well below its tested range (33–65 ft), so neither tested
 value mattered.
 
-San Xavier's `qc_report.pdf`/`qc_memo.md` §4 has not been edited yet —
-reported the finding first, per instruction, before touching a report
-that's already been reviewed and approved.
+**San Xavier §4 rewritten with the stronger version of the finding**
+The original sentence ("widening the SMRF window from 60 to 240 ft did
+not remove these features") read as four independent tests all failing,
+when only two configurations were genuinely distinct. Rather than just
+softening it, rewrote §4 around what the data actually supports, which
+turned out to be a better argument than the original: the tested windows
+map to pixel radii 19/37/55/73 at this tile's 3.3 ft cell size, and the
+observed convergence between 60 and 120 ft lines up quantitatively with
+the pad footprints independently measured at ~70–100 ft across. The
+convergence point is *where the measured footprint size predicts it
+should be* — evidence for the pad interpretation, not merely an absence
+of counter-evidence. Also noted that no pipeline JSON survives for the
+`w60` run (predates the audit-trail convention), so its parameters
+aren't independently verifiable from a saved artifact. Report rebuilt to
+19 pages (from 17 — the more precise explanation runs longer than the
+sentence it replaced), re-verified page by page, and a stale sentence in
+the appendix intro that `build_report.py` hardcodes separately from
+`qc_memo.md` was fixed to match. The one-pager needed no change (its
+"window 120 ft" reference is the production DEM parameter, unrelated to
+the diagnostic sweep).
+
+Caught an unrelated regression while staging: running `batch_process.py`
+earlier purely for orientation had overwritten two rows of real per-tile
+QC stats in the tracked `batch_qc.csv` with blank `skipped_existing`
+rows. Reverted before committing and documented the gotcha in
+`CLAUDE.md`'s Housekeeping section.
+
+**Tucson figure set rebuilt around the corrected story**
+The two figures built on the retracted window claim were rebuilt rather
+than patched — the premise itself was gone, not just the caption. The
+replacement for the window-tradeoff panel is a bar chart of what the
+final step *actually* changed: last-return prefiltering keeps 22,568,593
+of 27,722,077 points (81.4%) and drops 5,153,484 (18.6%) as likely
+canopy hits — a real, verifiable number, shown as a number because it
+isn't something a rendered surface can display. The before/after panel
+became an explicitly-captioned "visually near-identical, and that's
+expected" comparison, since the honest outcome of that step is recovered
+confidence in the method, not a visible reduction in speckle (which
+persists by design, a disclosed limitation). Terrain-context and
+negative-results figures were unchanged — both had already been checked
+against what they actually demonstrate.
+
+The SMRF `window` mechanism was promoted from a correction footnote to
+its own `## RESOLVED:` section in `CLAUDE.md`, since it's reusable
+knowledge rather than a one-tile incident: it predicts, for any future
+tile, that a window sweep only reveals a difference if the tested range
+spans the transition between "smaller than the largest real non-ground
+feature" and "larger than it," and that a convergence point is itself a
+rough measurement of that feature scale. Two new working rules were
+added to "How I want to work" — captions may not claim more than the
+figure demonstrates, and "did this parameter change anything?" is
+answered by checksum, never by eye or by whole-tile summary statistics
+(both of which failed on exactly this question).
+
+**Tucson case study status**: figure set complete and verified; written
+narrative and assembled PDF not started.

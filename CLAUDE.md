@@ -580,27 +580,13 @@ window wide enough to cut across real ridges/gullies) still stands as
 reasoning — it was just never actually tested; only the threshold change
 (1→2) and slope change (2→3) are confirmed real by checksum.
 
-**Mechanism, found in PDAL's own source** (`filters/SMRFilter.cpp`,
-`progressiveFilter()`, PDAL 2.10.0): `window` is a genuine linear-unit
-distance, converted to a pixel radius via `max_radius =
-ceil(window / cell)` — for this tile (cell 1.6 ft), window 33 ft → radius
-21, window 65 ft → radius 41. Not a units bug, not extent clamping. But
-the algorithm progressively opens the surface from radius 1 up to
-`max_radius`, flagging non-ground cells against a threshold that grows
-with radius too (`threshold = slope * cell * radius`) — so once the
-structuring element exceeds the largest real non-ground feature actually
-present in the data, further radius growth stops flagging anything new.
-For this tile, whatever separates ground from non-ground apparently
-converges well before radius 21, so 21 and 41 give identical output.
-This is corroborated by the *same* pattern on the original tile's own
-window sweep (see item #1 above): `dem_w120_s0.15_t1.6.tif`,
-`dem_w180_s0.15_t1.6.tif`, and `dem_w240_s0.15_t1.6.tif` are all
-byte-identical to each other (radii 37/55/73 at cell 3.3 ft), while
-`dem_w60_t16.tif` (radius 19) differs from all three — convergence
-somewhere between window 60 and 120 ft on that tile, exactly the kind of
-threshold this mechanism predicts. Window only matters up to the scale
-of the largest real feature in the data; beyond that, more window is a
-no-op by construction, on both tiles.
+**Mechanism**: window converts to a pixel radius (`ceil(window/cell)`,
+for this tile 21 and 41 px) and SMRF's progressive opening converges
+once that radius exceeds the largest real non-ground feature present —
+so both values landed past this tile's convergence point. Full
+source-level explanation, plus the corroborating San Xavier evidence, is
+its own dedicated section below ("RESOLVED: SMRF `window` parameter
+mechanism").
 
 **Final parameters**: `filters.returns groups=last,only` →
 ELM (cell 33 ft, threshold 3.3 ft) → statistical outlier (mean_k 8,
@@ -761,6 +747,48 @@ region), `hydrology_final_overlay.png` (streams + watershed + caveats,
 for satellite comparison), plus the full threshold-comparison and
 slope-area figures as audit trail.
 
+## RESOLVED: SMRF `window` parameter mechanism (found 2026-08-10)
+
+Discovered while checking a Tucson case-study figure caption against
+what its image actually showed (see item #10's correction note above) —
+PDAL's `filters.smrf` `window` argument doesn't behave the way this
+project's first pass at either tile assumed.
+
+**What `window` actually does**, from source (`filters/SMRFilter.cpp`,
+`progressiveFilter()`, PDAL 2.10.0 — fetched from the PDAL GitHub repo at
+the installed version's tag, not inferred from the CLI `--options` help
+text alone): it's a genuine linear-unit distance, correctly converted to
+a pixel radius via `max_radius = ceil(window / cell)`. Not a units bug,
+not extent clamping. But SMRF then progressively opens the surface with
+a structuring element from radius 1 up to `max_radius`, flagging
+non-ground cells against a threshold that **also grows with radius**
+(`threshold = slope * cell * radius`). Once the structuring element
+exceeds the largest real non-ground feature actually present in the
+data, further radius growth stops flagging anything new — the algorithm
+has converged, and any `window` value beyond that point produces
+byte-identical output to any other value beyond it.
+
+**Practical implication**: a `window` sweep only reveals a real
+difference if the tested range spans the transition between "smaller
+than the largest real feature in the data" and "larger than it."
+Testing several values that are all on the same side of that transition
+wastes effort and risks a false read on whether `window` matters at all
+— exactly what happened on both tiles in this project, discovered only
+by checksumming outputs directly, not by eyeballing hillshades or
+trusting whole-tile summary stats (both failed to catch it the first
+time):
+
+| Tile | cell | Windows tested | Radii | Result |
+|---|---|---|---|---|
+| Tucson Mountains | 1.6 ft | 33, 65 ft | 21, 41 | **Identical** — both already above this tile's convergence point |
+| Original (San Xavier) | 3.3 ft | 60, 120, 180, 240 ft | 19, 37, 55, 73 | **60 differs; 120/180/240 identical** — convergence between 60 and 120 ft, matching the ~70–100 ft pad footprints (QC memo §4) |
+
+**Before trusting a `window` sweep's "no effect" or "found the effect"
+conclusion on any future tile**: checksum the outputs directly. If two
+settings converge to the same result, that convergence point is itself
+informative — it's a rough, real measurement of the largest non-ground
+feature scale actually present in the data, not a dead end.
+
 ## Known Limitations
 
 **Tile-boundary edge effects (SMRF, not buffered).** SMRF's ground
@@ -814,7 +842,8 @@ Also done, beyond the original numbered plan: the batch processor
 investigation (§3.6 of the QC memo — a utility pole, not noise), the
 International-vs-US-survey-foot correction across every file, and a
 polished PDF deliverable (`scripts/build_report.py` →
-`output/reports/qc_report.pdf`, 17 pages, ~15.9 MB) that assembles
+`output/reports/qc_report.pdf`, 19 pages, ~17.3 MB — see below for the
+2026-08-10 growth from 17) that assembles
 `qc_memo.md` and all 10 rendered figures (`scripts/render_figures.py`,
 including a new `fig10_fill_impact.png`) into one report. `qc_memo.md`
 itself grew a new §5 "Hydrologic Derivatives" section this session
@@ -863,9 +892,33 @@ layout tightening was still applied: the two appendix hillshades
 moved from one full page each onto a single shared page, side by side
 (18→17).
 
+**2026-08-10 update**: §4 was rewritten (see item #10's correction note
+and the new "SMRF `window` parameter mechanism" section above) — the
+window-sweep evidence for the roof/pad finding was overstated (claimed
+four independent tests, only two configurations were actually distinct)
+and is now a more precise, quantitative argument. Rebuilt to **19
+pages, ~17.3 MB**; the extra ~2 pages are the more detailed §4
+explanation, not layout regression — re-verified page-by-page same as
+the original build.
+
+Also done this date: `README.md` (repo root) and a one-page PDF summary
+(`scripts/build_onepager.py` → `output/reports/qc_summary_1page.pdf`),
+both written for a thirty-second skim rather than a full read.
+
+**Tucson case study — in progress, not done.** Scoped as a standalone
+second deliverable (parameter adaptation across terrain, not a QC
+re-audit — that tile has no vendor accuracy assessment or NGS control to
+check against). Figure set built and verified
+(`scripts/render_tucson_figures.py`): terrain-slope context, the two
+real negative results (threshold/slope, ruled out), an input-filtering
+bar chart (the real fix — 81.4% of points kept via last-return
+prefiltering), and an honestly-captioned final comparison. No written
+narrative or assembled PDF yet. See item #10 above for why the figure
+set needed a full rebuild (a retracted "window trades detail for
+speckle" comparison that turned out to test nothing).
+
 Remaining, purely optional:
-- Fold the Tucson tile's findings into a second QC memo/addendum, if the
-  portfolio wants that tile written up as a standalone deliverable too.
+- Build the Tucson case-study narrative and assemble its PDF (see above).
 - Drop the ag-flagged segments from the hydrology stream vector entirely,
   if a cleaner (rather than annotated-and-flagged) deliverable is wanted.
 
@@ -880,9 +933,18 @@ pipelines), `46b2c4e` (batch processor), `eec709f` (`output/reports/`
 gitignore exception + QC memo committed), `5d3ebfb` (vertical datum/NVA
 confirmed, CHM outlier resolved), `3b3a124` (International vs. US survey
 foot fixed everywhere, Geoid12A + sealed-document provenance added),
-`5ef9130` (hydrologic analysis, item #11). This `CLAUDE.md` update, plus
-`docs/session-log.md` and `docs/PROJECT_SUMMARY.md`, are being committed
-together right after this update (see the session log for the date).
+`5ef9130` (hydrologic analysis, item #11), `f2011e8` (CLAUDE.md/session-log/
+PROJECT_SUMMARY preserved as durable memory), `cac0d93` (report figure
+renderer), `b9eb0f4` (hydrologic-derivatives memo section + first PDF
+build), `407dcc1` (PDF layout fixes — orphaned headings, Figure 7
+legibility, table path wrapping), `38fbed5` (QC memo review fixes —
+source accuracy, scope discipline, executive summary), `ceb86b5`
+(`README.md` + one-page summary PDF), `b564d96` (window-parameter record
+correction — San Xavier §4 rewritten with the real, quantitative
+finding), `86850be` (Tucson case-study figures rebuilt around the
+corrected story). This `CLAUDE.md` update, plus `docs/session-log.md`,
+are being committed together right after this update (see the session
+log for the date).
 
 - `data/raw/` now holds three files, all gitignored: the original tile,
   the raw downloaded Tucson tile (`USGS_LPC_AZ_PimaCounty_2021_B21_484572.laz`,
@@ -893,9 +955,17 @@ together right after this update (see the session log for the date).
   bare `!output/reports/` does NOT work while the parent is fully
   excluded, git won't traverse into an excluded directory to find
   negation rules inside it; verified with `git check-ignore` before
-  committing). `output/reports/qc_memo.md`, `batch_qc.csv`, and
-  `batch_qc_README.md` are tracked; all rasters/hillshades stay
-  regenerated, not versioned.
+  committing). Tracked there: `qc_memo.md`, `qc_report.pdf`,
+  `qc_summary_1page.pdf`, `batch_qc.csv`, `batch_qc_README.md` — prose
+  and assembled deliverables. All rasters/hillshades stay regenerated,
+  not versioned.
+- **`batch_qc.csv` gotcha**: re-running `batch_process.py` when outputs
+  already exist overwrites real per-tile QC rows (point counts, ground %,
+  density, void %, runtime) with blank `skipped_existing` rows — the
+  idempotent-skip path doesn't preserve prior stats. This silently
+  destroyed real data in a tracked file once (caught in `git diff` before
+  committing, 2026-08-10). Either `--force`, or `git checkout` the CSV
+  afterward, when re-running purely for orientation.
 - Session PNG figures (hillshades, diff maps, histograms, comparison
   crops) live only in the session scratchpad, not the repo, unless
   explicitly sent to the user as deliverable images.
@@ -935,3 +1005,30 @@ together right after this update (see the session log for the date).
   number worth citing, that number goes into the memo text in the same
   session it's computed — a stat that only exists in a terminal scrollback
   or a chat transcript is one context-compaction away from gone.
+- **A figure caption may not claim more than the figure demonstrates.**
+  If the finding is real but only visible in the numbers, show the
+  numbers — a diff map, a table, a histogram — rather than asking the
+  reader to see something in a hillshade that isn't legible at print
+  size. This is the same discipline as sourcing the vertical datum to a
+  sealed document instead of assuming, and as declining to write
+  "confirmed against orthoimagery" before an orthoimagery check had
+  actually been run. Consistency on it is most of what makes this work
+  credible to a reader who can't re-run the pipeline themselves.
+  **This rule has already caught a real error, and it is worth
+  understanding why**: a Tucson case-study figure was captioned "less
+  speckle" for a window-widening step where the two hillshades looked
+  identical at print size. Checking the underlying rasters rather than
+  softening the caption revealed the two files were *byte-identical* —
+  the parameter change had done nothing at all, and a documented
+  "finding" built on it had been wrong in `CLAUDE.md` for a session
+  (full account: the item #10 correction note and the SMRF `window`
+  mechanism section). A caption that overclaims isn't just a wording
+  problem; it's usually the first visible symptom of an unverified
+  result underneath it.
+- **Verify by checksum, not by eye or by summary statistics, when
+  asking "did this parameter change anything?"** Both failed on the
+  above: whole-tile min/max/mean were identical (correctly, since the
+  files were identical) and were dismissed as a "measurement artifact,"
+  and a visual hillshade comparison produced a confident but entirely
+  imagined read of the difference. `md5sum` the outputs. It takes one
+  command and it is not fooled by expectation.
