@@ -41,7 +41,12 @@ but is now **CONFIRMED** against authoritative project documentation (see
 - Bounds: X 980112.76–985112.75, Y 398427.81–403427.80 (5000 x 5000 ft)
 - Elevation range 2490.75–2654.69 ft (164 ft relief)
 - Point density ~3.7 pts/m² → QL2
-- Collected 2015, day 307. Processed with LAStools.
+- Collected **Feb 20–26, 2015** (confirmed, see "RESOLVED: vertical datum,
+  sensor, and NVA" below — 14 flight missions in ~1 week). The LAS header's
+  file-creation date is day 307 (Nov 3, 2015) — that's when USGS/Sanborn
+  finalized and repackaged the tile, months after acquisition, not a
+  second flight. Sensor: Leica ALS70 HP (Sanborn Aero-Commander 500-B).
+  Processed with LAStools.
 - Location: San Xavier district, Tohono O'odham Nation, south of Tucson.
   Mixed use — irrigated agriculture east, residential and two small hills
   west, a wash running roughly N–S through the middle, one center-pivot
@@ -58,7 +63,16 @@ conda env `lidar` (miniforge), installed at
 each new Miniforge Prompt session.
 
 PDAL 2.10.0 · GDAL 3.12.3 · laspy 2.7.0 + lazrs · numpy · rasterio ·
-geopandas · matplotlib · scipy 1.17.1. QGIS installed separately.
+geopandas · matplotlib · scipy 1.17.1 · whitebox 2.3.6 (WhiteboxTools
+2.4.0 binary, auto-downloaded on first use — added for the hydrologic
+analysis, item #11; see below).
+
+**Correction**: earlier notes in this file said "QGIS installed
+separately." Checked directly when setting up the hydrology analysis —
+**neither QGIS nor GRASS is actually installed** in this environment (no
+`qgis_process`, no `grass` CLI, no install directory found). That's why
+item #11 uses WhiteboxTools instead. If QGIS is genuinely needed later,
+it will need to be installed fresh, not assumed present.
 
 **Gotcha discovered this session**: running the env's `python.exe` or GDAL
 CLI tools *without* an activated shell (e.g. from a script or a tool that
@@ -78,22 +92,34 @@ can't run `conda activate`) fails in confusing ways:
 
 ```
 lidar-portfolio/
-  data/raw/          source tile — NEVER modify
-  data/control/      NGS control points (empty, todo)
-  scripts/           run_dem.py, compare_vendor.py
-  scripts/pipelines/ auto-generated PDAL JSON, one per run (audit trail)
-  output/dem/        DEMs, named by parameter
-  output/hillshade/  hillshades, named by parameter
-  output/contours/   (empty, todo)
-  output/reports/    (empty, todo — QC memo and findings go here)
-  qgis/              project files
-  docs/              notes, metadata
+  data/raw/            3 source tiles — NEVER modify. Gitignored.
+  data/control/        NGS control points — empty; investigated via API
+                        instead (item #5), concluded no usable in-tile
+                        control exists. Left empty deliberately, not todo.
+  scripts/             run_dem.py, compare_vendor.py, batch_process.py,
+                        tile_params.json, hydrology_0[1-8]_*.py
+  scripts/pipelines/   auto-generated PDAL JSON, one per run (audit trail)
+  output/dem/          DEMs, named by parameter. Gitignored (regenerated).
+  output/hillshade/    hillshades, named by parameter. Gitignored.
+  output/contours/     2 ft contours (item #7). Gitignored.
+  output/hydrology/    fill/flow/streams/watershed (item #11). Gitignored.
+  output/reports/      QC memo, batch QC CSV — TRACKED (see Housekeeping;
+                        this is the one output/ subfolder not gitignored).
+  qgis/                project files (not actively used — see QGIS
+                        correction above)
+  docs/                session-log.md (chronological), PROJECT_SUMMARY.md
+                        (standalone narrative, no context assumed)
 ```
 
 Convention: output filenames encode their parameters
-(`dem_w120_s0.15_t1.6.tif`). Never use "final" or "v2" in a filename.
-`data/raw/`, `output/`, and `.claude/` are gitignored — outputs are
-regenerated from the pipeline scripts, not versioned directly.
+(`dem_w120_s0.15_t1.6.tif`); batch-processed files additionally encode
+tile identity (`dem_<tile_stem>_<tag>.tif`, see item on batch_process.py)
+to avoid collisions across tiles with matching parameters. Never use
+"final" or "v2" in a filename.
+`data/raw/`, `output/*` (except `output/reports/`), and `.claude/` are
+gitignored — most outputs are regenerated from the pipeline scripts, not
+versioned directly; `output/reports/` is the deliberate exception because
+it holds hand-authored prose, not regenerable rasters (see Housekeeping).
 
 ## What has been done
 
@@ -138,6 +164,14 @@ Writes per-tile QC to `output/reports/batch_qc.csv`, with column
 definitions in `output/reports/batch_qc_README.md`. Mosaics all
 successfully-processed DEMs into `output/dem/catalog.vrt` (named
 "catalog," not "mosaic" — the tiles aren't spatially adjacent).
+
+**`scripts/hydrology_01..08_*.py`** — hydrologic analysis pipeline (item
+#11, full detail in its own section below): depression fill/breach, D8
+flow direction/accumulation, slope-area threshold analysis, stream
+extraction/vectorization, watershed delineation, and the final figures.
+Built on WhiteboxTools rather than reusing `run_dem.py`'s PDAL-based
+logic — a different toolkit for a different problem (surface hydrology,
+not point-cloud classification).
 
 ## RESOLVED: roof vs. pad question
 
@@ -703,7 +737,7 @@ Housekeeping below.)
 
 ## Next steps, in order
 
-All ten original items are done:
+All ten original items, plus everything added since, are done:
 
 1. ~~Roof vs. pad~~ — **DONE**
 2. ~~Grid alignment fix + vendor diff/RMSE~~ — **DONE**
@@ -715,11 +749,19 @@ All ten original items are done:
 8. ~~DSM and CHM~~ — **DONE**
 9. ~~QC memo~~ — **DONE**
 10. ~~Second tile, harder terrain~~ — **DONE**
+11. ~~Hydrologic analysis (fill, flow, streams, watershed)~~ — **DONE**
 
-Everything from the original plan, plus the batch processor and the
-vertical-datum/NVA research, is done. Remaining, purely optional:
+Also done, beyond the original numbered plan: the batch processor
+(`scripts/batch_process.py`), the vertical-datum/sensor/NVA research
+(now a sourced, confirmed fact — see below), the CHM tall-point outlier
+investigation (§3.6 of the QC memo — a utility pole, not noise), and the
+International-vs-US-survey-foot correction across every file.
+
+Remaining, purely optional:
 - Fold the Tucson tile's findings into a second QC memo/addendum, if the
   portfolio wants that tile written up as a standalone deliverable too.
+- Drop the ag-flagged segments from the hydrology stream vector entirely,
+  if a cleaner (rather than annotated-and-flagged) deliverable is wanted.
 
 ## Housekeeping / repo state
 
@@ -729,8 +771,12 @@ data/outputs from version control), `fb7b0cd` (stray junk files removed +
 `8013a91` (local permissions allowlist), `4b96512` (swath-overlap
 pipelines), `64ec83c` (density/DSM pipelines + Tucson parameter-search
 pipelines), `46b2c4e` (batch processor), `eec709f` (`output/reports/`
-gitignore exception + QC memo committed). This `CLAUDE.md` update itself
-is not yet committed as of this writing.
+gitignore exception + QC memo committed), `5d3ebfb` (vertical datum/NVA
+confirmed, CHM outlier resolved), `3b3a124` (International vs. US survey
+foot fixed everywhere, Geoid12A + sealed-document provenance added),
+`5ef9130` (hydrologic analysis, item #11). This `CLAUDE.md` update, plus
+`docs/session-log.md` and `docs/PROJECT_SUMMARY.md`, are being committed
+together right after this update (see the session log for the date).
 
 - `data/raw/` now holds three files, all gitignored: the original tile,
   the raw downloaded Tucson tile (`USGS_LPC_AZ_PimaCounty_2021_B21_484572.laz`,
