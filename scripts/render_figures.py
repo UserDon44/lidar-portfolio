@@ -317,10 +317,15 @@ def fig_hydrology_overlay():
 # 9. Stream threshold, 3-panel story: artifact visible -> clean choice -> tributaries lost
 # ============================================================
 def fig_threshold_3panel():
+    # Stacked vertically, not side by side: at 1x3 the panels got scaled
+    # down to fit the PDF's page width and axis/title text became
+    # unreadably small (~4pt effective). Stacked, each panel gets the
+    # full page width instead of a third of it -- same underlying crop,
+    # far more legible in print.
     thresholds = [1500, 5000, 20000]
-    labels = ["1,500 cells (0.31 ac)\nwheel-track ring clearly visible",
-              "5,000 cells (1.03 ac) \u2014 CHOSEN\nclean tributaries, ring still faint",
-              "20,000 cells (4.13 ac)\nring gone, but real tributaries lost too"]
+    labels = ["1,500 cells (0.31 ac) \u2014 wheel-track ring clearly visible",
+              "5,000 cells (1.03 ac) \u2014 CHOSEN \u2014 clean tributaries, ring still faint",
+              "20,000 cells (4.13 ac) \u2014 ring gone, but real tributaries lost too"]
 
     hs_ds = rasterio.open(HS_DIR / "hs_w120_s0.15_t1.6.tif")
     hs_full = hs_ds.read(1)
@@ -331,7 +336,7 @@ def fig_threshold_3panel():
     hs = hs_full[row0:row1, col0:col1]
     extent = [minx, maxx, miny, maxy]
 
-    fig, axes = plt.subplots(1, 3, figsize=(15, 4.2), dpi=DPI)
+    fig, axes = plt.subplots(3, 1, figsize=(9, 10.4), dpi=DPI)
     for ax, t, label in zip(axes, thresholds, labels):
         ax.imshow(hs, cmap="gray", extent=extent, origin="upper", zorder=1)
         with rasterio.open(HYDRO_DIR / f"streams_t{t}.tif") as ds:
@@ -342,17 +347,19 @@ def fig_threshold_3panel():
         overlay = np.zeros((*s.shape, 4))
         overlay[mask] = [1, 0.1, 0.1, 1]
         ax.imshow(overlay, extent=extent, origin="upper", zorder=2)
-        ax.set_title(label, fontsize=9)
-        ax.set_xlabel("Easting (ft)", fontsize=8)
-        ax.tick_params(labelsize=7)
-        add_scalebar(ax, 500, loc=(0.04, 0.05))
-        add_north_arrow(ax, loc=(0.90, 0.85), size=0.09)
-    axes[0].set_ylabel("Northing (ft)", fontsize=8)
+        ax.set_title(label, fontsize=11)
+        ax.set_ylabel("Northing (ft)", fontsize=9.5)
+        ax.tick_params(labelsize=8.5)
+        add_scalebar(ax, 500, loc=(0.03, 0.06))
+        add_north_arrow(ax, loc=(0.94, 0.87), size=0.07)
+    axes[-1].set_xlabel("Easting (ft)", fontsize=9.5)
+    for ax in axes[:-1]:
+        ax.set_xticklabels([])
 
-    fig.suptitle("Stream extraction threshold: the pivot field's wheel-track ring cannot be "
+    fig.suptitle("Stream extraction threshold: the pivot field's wheel-track ring cannot be\n"
                  "cleared without losing real tributaries \u2014 no single number satisfies both",
-                 fontsize=10.5)
-    fig.tight_layout(rect=[0, 0, 1, 0.93])
+                 fontsize=13)
+    fig.tight_layout(rect=[0, 0, 1, 0.94])
     out = FIG_DIR / "fig09_threshold_3panel.png"
     fig.savefig(out)
     plt.close(fig)

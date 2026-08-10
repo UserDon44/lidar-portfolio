@@ -89,11 +89,25 @@ APPENDIX_FIGURES = [
 ]
 
 
+def _code_span(m):
+    # slightly smaller than body text -- Courier glyphs run wide, and at
+    # body size a long file path (e.g. output/contours/contours_2ft_
+    # w120_s0.15_t1.6.gpkg) didn't fit a table column, so reportlab
+    # force-split it at an arbitrary character instead of a path
+    # boundary. (Tried inserting a U+200B zero-width space after each
+    # "/" as a legal break point -- reportlab's base-14 Courier has no
+    # glyph for it and rendered a visible tofu box, worse than the
+    # original bug. Reverted; the smaller font alone gives enough margin
+    # for every path in this memo to fit on one line, checked directly.)
+    content = m.group(1)
+    return f'<font face="Courier" size="7.6">{content}</font>'
+
+
 def inline_markdown(text):
     text = text.replace("&", "&amp;")
     text = re.sub(r"\*\*(.+?)\*\*", r"<b>\1</b>", text)
     text = re.sub(r"(?<!\*)\*([^*]+?)\*(?!\*)", r"<i>\1</i>", text)
-    text = re.sub(r"`(.+?)`", r'<font face="Courier">\1</font>', text)
+    text = re.sub(r"`(.+?)`", _code_span, text)
     return text
 
 
@@ -254,6 +268,24 @@ def main():
     cur_key = None
     started = False
     in_meta = True
+    pending_heading = None  # [heading Paragraph] waiting to be glued via
+                             # KeepTogether to whatever content follows it,
+                             # so a heading can never render alone at the
+                             # bottom of a page -- a CondPageBreak alone
+                             # only reserves room for the heading itself,
+                             # not for the text that has to follow it, so
+                             # the heading and the next few lines could
+                             # still land on opposite pages
+
+    def push(flowables):
+        # append content to buf, gluing it to a just-emitted heading (if
+        # any) so heading + first content block move together as one unit
+        nonlocal pending_heading
+        if pending_heading is not None:
+            buf.append(KeepTogether(pending_heading + flowables))
+            pending_heading = None
+        else:
+            buf.extend(flowables)
 
     def end_heading_block(new_top_level):
         # flush whatever section/subsection is currently open, including
@@ -262,7 +294,12 @@ def main():
         # wasted half-empty pages); a rule + generous spacing marks each
         # new top-level section instead, and reportlab breaks naturally
         # wherever content actually runs out of room.
-        nonlocal buf, cur_key, started
+        nonlocal buf, cur_key, started, pending_heading
+        if pending_heading is not None:
+            # previous heading had no body content at all (edge case) --
+            # emit it alone rather than lose it
+            buf.append(KeepTogether(pending_heading))
+            pending_heading = None
         if cur_key is None:
             if not started:
                 title_page(story, meta_lines)
@@ -279,7 +316,15 @@ def main():
         first = block[0]
 
         if first.startswith("|"):
-            buf.append(KeepTogether([Spacer(1, 4), parse_table(block), Spacer(1, 6)]))
+            # the table's own Spacer+Table+Spacer must stay one atomic
+            # KeepTogether unit regardless of whether push() also glues
+            # it to a preceding heading -- otherwise (the common case,
+            # no heading immediately above) push() just extends buf with
+            # three loose flowables and reportlab is free to split the
+            # table across a page boundary again, header stranded from
+            # its data despite repeatRows=1 fixing only the *reprinted*
+            # header, not the split itself
+            push([KeepTogether([Spacer(1, 4), parse_table(block), Spacer(1, 6)])])
             continue
 
         if first == "---":
@@ -292,8 +337,8 @@ def main():
         if first.startswith("## "):
             end_heading_block(new_top_level=True)
             cur_key = first[3:].strip()
-            buf = [CondPageBreak(1.3 * inch),
-                   Paragraph(inline_markdown(cur_key), styles["H1"])]
+            pending_heading = [CondPageBreak(1.3 * inch),
+                                Paragraph(inline_markdown(cur_key), styles["H1"])]
             in_meta = False
             # remainder of this block (rare: text on the same block as
             # the heading) falls through as a paragraph below
@@ -305,8 +350,8 @@ def main():
         elif first.startswith("### "):
             end_heading_block(new_top_level=False)
             cur_key = first[4:].strip()
-            buf = [CondPageBreak(1.0 * inch),
-                   Paragraph(inline_markdown(cur_key), styles["H2"])]
+            pending_heading = [CondPageBreak(1.0 * inch),
+                                Paragraph(inline_markdown(cur_key), styles["H2"])]
             block = block[1:]
             if not block:
                 continue
@@ -314,16 +359,14 @@ def main():
 
         if NUMBERED_RE.match(first):
             items = split_items(block, NUMBERED_RE, strip_marker=True)
-            for n, t in enumerate(items, start=1):
-                buf.append(Paragraph(f"{n}.&nbsp;&nbsp;{inline_markdown(t)}",
-                                      styles["ListItem"]))
+            push([Paragraph(f"{n}.&nbsp;&nbsp;{inline_markdown(t)}", styles["ListItem"])
+                  for n, t in enumerate(items, start=1)])
             continue
 
         if first.startswith("- "):
             items = split_items(block, re.compile(r"^-\s+"), strip_marker=True)
-            for t in items:
-                buf.append(Paragraph(f"•&nbsp;&nbsp;{inline_markdown(t)}",
-                                      styles["ListItem"]))
+            push([Paragraph(f"•&nbsp;&nbsp;{inline_markdown(t)}", styles["ListItem"])
+                  for t in items])
             continue
 
         if in_meta:
@@ -332,8 +375,10 @@ def main():
             continue
 
         # plain paragraph: rejoin soft-wrapped lines into one string
-        buf.append(Paragraph(inline_markdown(" ".join(block)), styles["Body"]))
+        push([Paragraph(inline_markdown(" ".join(block)), styles["Body"])])
 
+    if pending_heading is not None:  # heading with no body at all (edge case)
+        buf.append(KeepTogether(pending_heading))
     if cur_key is not None:
         flush_section(story, cur_key, buf)
 

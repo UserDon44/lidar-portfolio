@@ -40,7 +40,9 @@
       "Read(//c/Program Files/**)",
       "Read(//c/Program Files \\\\\\(x86\\\\\\)/**)",
       "Read(//c/Users/ryans/AppData/Local/**)",
-      "Read(//c//**)"
+      "Read(//c//**)",
+      "PowerShell(xcopy \"C:\\\\Users\\\\ryans\\\\lidar-portfolio\" \"C:\\\\Users\\\\ryans\\\\OneDrive\\\\lidar-portfolio-backup\" /E /I /H /Y)",
+      "PowerShell(Start-Process \"output\\\\reports\\\\qc_report.pdf\")"
     ]
   }
 }
