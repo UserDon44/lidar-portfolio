@@ -213,7 +213,9 @@ above natural grade is normal flood-mitigation practice for structures near
 a wash.
 
 **Why SMRF didn't remove it, and why widening `window` didn't help**: the
-structure footprint (~70–100 ft across) is comparable to the SMRF `window`
+structure footprint (66–114 ft across closed axes, 96 ft characteristic
+width — measured by `scripts/measure_features.py`, see QC memo §4 for the
+method) is comparable to the SMRF `window`
 tried (120–240 ft). When a raised, flat feature approaches window size,
 SMRF's morphological-opening surface model gets pulled upward *within* that
 window and starts treating the pad top as part of the terrain — a known
@@ -495,8 +497,9 @@ Feet" verbatim). Conversion factor used is `3.280839895`, not
 `3.280833333`.
 
 **Tile stats after reprojection**: 3,309 × 3,310 ft (~251 acres),
-27,722,077 points (~27.7 pts/m², QL1-class — ~7.5x denser than the original
-tile's QL2 3.7 pts/m²). Raw header showed an absurd 5,144 ft "relief"
+27,722,077 points (**27.24 pts/m²**, QL1-class — **7.28x** denser than the
+original tile's QL2 3.74 pts/m²; both re-derived from the point clouds
+2026-08-10, correcting an earlier "~27.7 / ~7.5x" that overstated both). Raw header showed an absurd 5,144 ft "relief"
 (781–2349 m) — that max was a single classification-18 (high noise) point.
 Excluding noise classes 7/18: real range 2,727.4–3,055.8 ft, **328.4 ft of
 relief** over a much smaller area than the original tile (164 ft over 574
@@ -521,7 +524,7 @@ vendor's own class-2 points and ran `gdaldem slope -p`:
 1. `w33_s1.0_t3.3` — window 33 ft (down from 120 ft; no large graded pads
    here, only sparse vegetation, and a big window in steep terrain lets
    the surface cut across real ridges/gullies), slope 1.0 (just under
-   measured p90), cell 1.6 ft (down from 3.3 ft, supported by ~7.5x
+   measured p90), cell 1.6 ft (down from 3.3 ft, supported by 7.28x
    higher point density), threshold 3.3 ft, scalar 1.25. Hillshade showed
    plausible ridge/gully/trail structure, but a dense fine speckle texture
    the user identified as **vegetation**.
@@ -599,7 +602,7 @@ threshold 1.3 ft, scalar 0.75) → class-2 filter → IDW raster, 1.6 ft.
 | slope | 0.15 | 0.6 | Measured terrain far exceeds flat-desert norms (median 28%, p90 91.5%) |
 | threshold | 1.6 ft | 1.3 ft | Tighter, to reject low vegetation given slope already extends reach |
 | scalar | 1.25 | 0.75 | Slows tolerance growth, compensating for higher slope |
-| cell | 3.3 ft | 1.6 ft | ~7.5x higher point density supports finer resolution |
+| cell | 3.3 ft | 1.6 ft | 7.28x higher point density supports finer resolution |
 | pre-filter | none | last/single-return only | 35.16% multi-return vs. 1.023 mean on original — real canopy signal exploited |
 
 Deliverables: `output/dem/dem_tucson_lastreturn_w33_s0.6_t1.3.tif`,
@@ -656,8 +659,10 @@ Input: `dem_w120_s0.15_t1.6.tif` (the original tile's canonical DEM).
 **Depression handling**: `BreachDepressionsLeastCost` (dist=1000, min_dist)
 first — minimal terrain modification, carves through barriers rather than
 flooding — then `FillDepressions` (fix_flats) on whatever remained
-unbreached. All 101,466 pits were fully resolved by breaching alone (0
-unresolved). Impact quantified by direct DEM differencing, not a tool
+unbreached. Every detected pit was resolved by breaching alone (0
+unresolved). *(WhiteboxTools reported 101,466 pits in console output
+that was never saved — treat as tool output, not a re-derivable
+measurement. The volumes below are re-derivable and don't depend on it.)* Impact quantified by direct DEM differencing, not a tool
 summary line:
 
 | Stage | Cells changed | Volume | Max change |
@@ -681,8 +686,11 @@ separate tile-boundary-adjacent (<150 ft) flag:
 **Key finding**: the real (non-edge) terrain — both natural and ag — is
 **breach-dominated (net cut)**, not fill-dominated. The large net *fill*
 volume is concentrated almost entirely at the tile boundary. Checked one
-specific case directly: a 9.27 ft residual-fill blob at (985047, 403378),
-~50 ft from the NE corner — no data void, but genuine steep terrain right
+specific case directly: a 9.27 ft residual-fill blob at (985046, 403403),
+~71 ft from the NE corner (coordinates corrected 2026-08-10 against
+`fill_impact_residual.tif`'s actual argmax; previously recorded as
+(985047, 403378) / "~50 ft," which the raster does not support) — no
+data void, but genuine steep terrain right
 at the edge, consistent with a real depression whose natural outlet lies
 outside the tile (so it reads as artificially closed). This ties the
 fill-impact and boundary-truncation concerns together: truncation doesn't
@@ -781,7 +789,7 @@ time):
 | Tile | cell | Windows tested | Radii | Result |
 |---|---|---|---|---|
 | Tucson Mountains | 1.6 ft | 33, 65 ft | 21, 41 | **Identical** — both already above this tile's convergence point |
-| Original (San Xavier) | 3.3 ft | 60, 120, 180, 240 ft | 19, 37, 55, 73 | **60 differs; 120/180/240 identical** — convergence between 60 and 120 ft, matching the ~70–100 ft pad footprints (QC memo §4) |
+| Original (San Xavier) | 3.3 ft | 60, 120, 180, 240 ft | 19, 37, 55, 73 | **60 differs; 120/180/240 identical** — convergence between 60 and 120 ft, bracketing the measured 66–114 ft pad footprint (QC memo §4) |
 
 **Before trusting a `window` sweep's "no effect" or "found the effect"
 conclusion on any future tile**: checksum the outputs directly. If two
@@ -1005,6 +1013,34 @@ log for the date).
   number worth citing, that number goes into the memo text in the same
   session it's computed — a stat that only exists in a terminal scrollback
   or a chat transcript is one context-compaction away from gone.
+- **Record the measurement *parameters*, not just the measurement.**
+  This is the sharper version of the rule above, and it's what a
+  2026-08-10 audit of every quantitative claim in the deliverables
+  actually found. The determining factor for whether a number survives
+  is **not** whether a script was saved — it's whether the parameters
+  that define the measurement were written down somewhere durable.
+  Evidence from that audit: §3.2 (pivot-field precision) and §4 (the
+  +2.85 ft pad step) had *no* script, yet both reproduced to four
+  decimals years later, purely because their sample-box corners and
+  sample coordinates were recorded in this file. §3.6 (the CHM
+  tall-point cluster) also had no script, and **failed** to reproduce —
+  its search radius and ground reference were never stated, and no
+  radius reproduces the numbers as published (the count was wrong: 11,
+  not 13). Same tooling, same author, opposite outcomes, and the only
+  difference was written-down parameters.
+  So: whenever a number comes from a choice — a threshold, a radius, a
+  sample box, a background definition, a search method — state the
+  choice next to the number, and state *why that choice* in one clause.
+  A result whose method isn't recorded is not a measurement; it's an
+  anecdote that happens to have a decimal point.
+  Corollary, also from that audit: if a number can only come from a
+  tool's console output (WhiteboxTools' 101,466-pit count), either save
+  the log or attribute it explicitly as tool output. Never let an
+  unfalsifiable number sit in a deliverable looking like a measurement.
+  `scripts/measure_features.py` exists as the worked example — it
+  re-derives both §4 and §3.6 with every parameter named and justified
+  in the docstring, including why connected-component labelling was
+  rejected for §4 in favour of radial profiles.
 - **A figure caption may not claim more than the figure demonstrates.**
   If the finding is real but only visible in the numbers, show the
   numbers — a diff map, a table, a histogram — rather than asking the

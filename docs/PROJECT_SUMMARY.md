@@ -100,8 +100,8 @@ first tile could not: real slope and real vegetation canopy.
   International Feet conversion, not 3.280833333 which would be the US
   survey foot conversion).
 - **Extent after reprojection**: 3,309 × 3,310 ft (~251 acres)
-- **Point count**: 27,722,077 (~27.7 points/m² — QL1-class, roughly 7.5x
-  denser than the primary tile's QL2 density)
+- **Point count**: 27,722,077 (**27.24 points/m²** — QL1-class, **7.28x**
+  denser than the primary tile's QL2 3.74 points/m²)
 - **Elevation range**: 2,727.4–3,055.8 ft after excluding sensor noise
   points (the raw header showed an implausible 5,144 ft of "relief,"
   traced to a single high-noise-classified point) — **328.4 ft of real
@@ -292,10 +292,11 @@ investigated in section 4.1. A strong CHM line follows the wash
 
 The CHM's maximum value (72.87 ft) was specifically investigated rather
 than left as an unexplained outlier: its raw returns, at (981146.26,
-400792.30 ft), form a small coherent cluster of only 13 points (not
-hundreds, as an actual building roof would produce), narrow in one
-direction (~3 ft) but spread over ~17 ft in the other, and nearly all
-are the first return of a 2-3-return pulse — the signature of a laser
+400792.30 ft), form a small coherent cluster of 11 returns within a 20 ft
+radius, measured against the delivered bare-earth DEM (not hundreds, as
+an actual building roof would produce), narrow in one direction (3.7 ft
+east–west) but spread over 16.8 ft north–south, and 10 of the 11
+are the first return of a 2-or-3-return pulse — the signature of a laser
 mostly passing *through* a thin, open structure and also registering the
 ground behind it. **Conclusion: a utility pole or small
 transmission/communications tower**, correctly retained as a real
@@ -414,8 +415,11 @@ environment, correcting an earlier assumption).
 the whole depression — chosen specifically to avoid destroying real
 incised terrain, such as the wash itself, or real closed depressions),
 with standard flood-filling applied only to whatever the breach step
-could not resolve. All 101,466 detected pits were fully resolved by
-breaching alone; nothing required the more aggressive fallback. Impact
+could not resolve. Every depression the breach step detected was
+resolved by breaching alone; nothing required the more aggressive
+fallback. (WhiteboxTools reported 101,466 pits in that run's console
+output, which was not retained — quoted as tool output, not as a
+re-derivable measurement.) Impact
 was quantified by directly differencing the corrected DEM against the
 original (not by trusting a tool's own summary output), and classified
 spatially into three categories: natural terrain west of the wash, the

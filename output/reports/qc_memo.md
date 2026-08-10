@@ -185,17 +185,20 @@ rather than clustering on the wash or any single feature. See Figure 4.
 
 The canopy/structure height model's maximum value (72.87 ft) was checked
 rather than left unexplained. Location: 981146.26, 400792.30 ft
-(EPSG:6405), western residential block. Raw returns there: only 13 points
-exceed 10 ft above local ground (vs. hundreds across a footprint for an
-actual building, per §4 below), clustered narrowly in one axis (~3 ft)
-but spread ~17 ft in the other, and nearly all are the first return of a
-2-3 return pulse — consistent with a laser mostly passing through a thin,
-open structure and also registering ground behind it. **Conclusion: a
-utility pole or small transmission/communications tower**, not sensor
-noise or a bird strike (which would show as a single isolated point, not
-a small coherent cluster) and not a building or vegetation (both ruled
-out by height and point density). Real feature, correctly retained. See
-Figure 5.
+(EPSG:6405), western residential block. Measured within a **20 ft
+circular radius** of that cell, against the delivered bare-earth DEM as
+the ground reference (both stated because the result depends on them):
+**11 returns** exceed 10 ft above ground — vs. hundreds across a
+footprint for an actual building, per §4 — spanning just **3.7 ft in
+easting but 16.8 ft in northing**, and **10 of the 11 are the first
+return of a multi-return pulse**, with every pulse involved having
+exactly 2 or 3 returns. That is a laser mostly passing through a thin,
+open structure and registering ground behind it. **Conclusion: a utility
+pole or small transmission/communications tower**, not sensor noise or a
+bird strike (which would show as a single isolated point, not a narrow
+coherent cluster) and not a building or vegetation (both ruled out by
+height and by point density). Real feature, correctly retained.
+Re-derive with `python scripts/measure_features.py`. See Figure 5.
 
 ## 4. Feature Investigation: Roof vs. Pad
 
@@ -235,14 +238,35 @@ At this run's cell size (3.3 ft), the four tested windows map to radii
 grows with radius too — so once the structuring element exceeds the
 largest real non-ground feature actually present in the data, further
 radius growth stops changing the classification. The observed
-convergence, somewhere between 60 ft (radius 19) and 120 ft (radius 37),
-lines up with the pad footprints measured at **~70–100 ft across**: once
-the window reaches roughly that scale the algorithm has already "seen"
-the full pad, and widening it further adds nothing. That's a
-quantitative match, not a coincidence, and a stronger piece of evidence
-for the pad interpretation than a bare "widening didn't help" — the
-convergence point is exactly where the independently measured footprint
-size predicts it should be.
+convergence therefore falls somewhere between 60 ft (radius 19) and
+120 ft (radius 37).
+
+*Footprint measurement (method stated so the comparison is checkable):*
+the raised built surface was measured by radial profiles from the sample
+point at 15° increments, with the edge along each bearing taken as the
+first cell lying more than **half the measured 2.85 ft pad step** below
+the pad-top elevation — half the step being the physically motivated
+cut, since a point that far below the pad top is unambiguously off the
+built surface rather than on its graded crown or shoulder.
+Connected-component labelling was tried first and rejected: at any
+threshold low
+enough to reach the pad edge, the pad is contiguous with the driveway
+and loop-road embankment, so the labelled region runs away into the road
+network. Radial profiles avoid this, since each bearing is measured
+independently. Result: 23 of 24 bearings close within 150 ft, at edge
+radii of 15–63 ft (median 48), giving a characteristic width of **96 ft**
+and closed-axis spans of **66–114 ft**. The single open bearing is due
+west, where the pad merges with the driveway. Re-derive with
+`python scripts/measure_features.py`.
+
+The convergence between 60 and 120 ft thus brackets the measured
+footprint scale (66–114 ft): once the structuring element reaches
+roughly the size of the pad, the algorithm has already "seen" the whole
+feature and widening further adds nothing. That the convergence point
+and the independently measured footprint agree is a stronger piece of
+evidence for the pad interpretation than a bare "widening didn't help" —
+though the agreement is a bracket, not a coincidence to be read too
+precisely.
 
 *(No pipeline JSON was retained for the `w60` run — it predates this
 project's audit-trail convention of saving one per run, see §2 — so its
@@ -259,10 +283,15 @@ environment, correcting an earlier assumption).
 ### 5.1 Depression handling
 
 `BreachDepressionsLeastCost` was run first (minimal terrain modification),
-then `FillDepressions` on whatever remained. All 101,466 detected pits were
-resolved by the breach step alone — fill was genuinely a backstop, not the
-primary correction. Impact was quantified by direct DEM differencing (not a
-tool summary line), so it is independently verifiable:
+then `FillDepressions` on whatever remained. The breach step alone
+resolved every depression it detected, leaving nothing for fill to
+resolve as a pit — fill was genuinely a backstop, not the primary
+correction. *(WhiteboxTools reported 101,466 detected pits in that run's
+console output; that log was not retained, so the figure is quoted here
+as tool output rather than as a measurement re-derivable from the saved
+rasters. The impact volumes below are independently verifiable and do
+not depend on it.)* Impact was quantified by direct DEM differencing,
+not a tool summary line:
 
 | Step | Cells changed | % of tile | Volume (cu ft) | Max raise | Max cut |
 |---|---|---|---|---|---|
