@@ -15,6 +15,22 @@ Data classified QL2. Tile file itself finalized/repackaged later (LAS header sho
 
 ---
 
+## Executive Summary
+
+This memo documents a bare-earth DEM produced from raw LiDAR returns — not
+the vendor's delivered classification — for a 574-acre tile in the San
+Xavier District, Pima County, AZ. The resulting surface agrees with the
+vendor's own delivered ground classification to **0.162 ft RMSE**,
+comfortably clearing the ASPRS Positional Accuracy Standards QL2
+non-vegetated threshold (≤0.328 ft). Three findings are worth flagging
+up front: a systematic **~0.12 ft vertical offset between two
+overlapping flight lines** in the source collection (§3.3); a tile-wide
+point density that meets the QL2 average but leaves **19.4% of cells
+locally below the minimum** (§3.5); and a set of crisp rectangular
+features in the residential block, investigated and resolved as
+**graded concrete pads, not unremoved roof returns** (§4). Full method,
+accuracy assessment, and limitations follow below.
+
 ## 1. Source Data
 
 8,692,808 points, LAS 1.4 point format 6, covering a 5,000 × 5,000 ft (≈574-acre)
@@ -190,8 +206,19 @@ whether they were unremoved roof returns or real graded ground features.
 Sampled DEM elevation at a structure's interior center vs. open ground ~45 ft
 away: **+2.85 ft** difference. A roof would present an 8–15 ft plateau with a
 sharp vertical wall; 2.85 ft is consistent with a graded, built-up
-foundation pad, not roof height — confirmed on the ground by the client as
-concrete pads leading to driveways and the road.
+foundation pad, not roof height.
+
+Cross-checked against current orthoimagery (Esri World Imagery, fetched
+directly for these coordinates — 32.096637°N, 111.011371°W): a roofed
+residential structure now occupies essentially the same footprint. This
+does not contradict the pad interpretation; it corroborates it. The Feb
+2015 acquisition measured a graded, sub-roof-height platform, not an
+existing building — a house built on that same pad sometime in the
+intervening decade is exactly what the 2015 measurement would predict.
+Present-day imagery cannot directly confirm ground conditions at
+acquisition time (see §7), so this is corroborating, not primary,
+evidence; the elevation-plateau argument above remains the direct
+evidence from the dataset itself.
 
 Widening the SMRF `window` from 60 to 240 ft did not remove these features.
 Cause: the pad footprints (~70–100 ft across) approach the SMRF window size
@@ -279,7 +306,6 @@ limitation, applied to a drainage area instead of a ground surface.
 | `output/contours/contours_2ft_w120_s0.15_t1.6.gpkg` | 2 ft contours |
 | `output/dem/diff_VENDOR_minus_w120_s0.15_t1.6.tif` | Vendor comparison raster |
 | `output/dem/density_count_3ft_aligned.tif` | Per-cell point density |
-| `output/dem/catalog.vrt` | Virtual mosaic of all batch-processed tiles (see §8) |
 | `output/reports/batch_qc.csv` | Per-tile QC log (point counts, ground %, density, void %, runtime) |
 | `output/hydrology/streams_final_t5000.gpkg` | Derived stream network, ag-area segments flagged (§5.2) |
 | `output/hydrology/watershed_main_wash.gpkg` | Main wash watershed, 258.4 ac lower bound (§5.3) |
@@ -292,8 +318,8 @@ limitation, applied to a drainage area instead of a ground surface.
   from the delivered LAZ's own header, which declares no vertical CRS.
   Sensor was a Leica ALS70 HP, flown Feb 20–26, 2015. Project NVA:
   RMSEz = 10.3 cm (raw LAS) / 8.8 cm (bare-earth DEM), against a QL2
-  target of ≤10 cm — the raw-LAS figure is marginally over that target,
-  not flagged as a failure by the certifying surveyor. VVA was not
+  target of ≤10 cm — the raw-LAS figure marginally exceeds the 10 cm
+  target; the assessment does not comment on this. VVA was not
   assessed by the vendor (project area classified entirely non-vegetated
   for accuracy-testing purposes). Full source citation, including why it's
   treated as authoritative, in §9.
@@ -302,6 +328,12 @@ limitation, applied to a drainage area instead of a ground surface.
   mi collection area and none happen to land in this 574-acre tile. The
   project-wide NVA above is real and sourced, but an in-tile check would
   require new fieldwork.
+- **The orthoimagery cross-check in §4 uses present-day imagery, not
+  imagery contemporaneous with the Feb 2015 acquisition.** It shows a
+  roofed structure now standing on the footprint identified as a graded
+  pad in the LiDAR — consistent with construction sometime in the
+  intervening decade, not a contradiction of the elevation-based
+  finding, but not a same-epoch verification either.
 - **A systematic ~0.12 ft flight-line offset exists in the source
   collection** (§3.3) and should be disclosed to any downstream user relying
   on precision better than that in the affected area.
@@ -332,13 +364,9 @@ limitation, applied to a drainage area instead of a ground surface.
 
 ## 8. Batch processing (multi-tile)
 
-`scripts/batch_process.py` processes every tile in `data/raw/` using
-tile-specific SMRF parameters (`scripts/tile_params.json`), is idempotent
-(`--force` to reprocess), skips tiles in the wrong CRS rather than
-guessing, and logs per-tile QC to `output/reports/batch_qc.csv` (column
-definitions in `output/reports/batch_qc_README.md`). All currently
-processed tiles are cataloged in `output/dem/catalog.vrt`. See CLAUDE.md
-for the full design rationale.
+A second tile (Tucson Mountains, steeper vegetated terrain) was also run
+through this pipeline with its own tuned SMRF parameters; its results
+are documented separately, not in this single-tile memo.
 
 ## 9. Sources (project documentation, external to this analysis)
 

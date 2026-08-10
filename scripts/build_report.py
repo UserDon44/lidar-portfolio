@@ -195,16 +195,26 @@ def flush_section(story, sec_key, buf):
         story.append(Paragraph(caption, styles["Caption"]))
 
 
-def title_page(story, meta_lines):
-    story.append(Spacer(1, 1.6 * inch))
+def title_page(story, meta_lines, exec_summary_text=None):
+    story.append(Spacer(1, 1.1 * inch))
     story.append(Paragraph("LiDAR Bare-Earth DEM", styles["MemoTitle"]))
     story.append(Paragraph("Quality Control Memorandum", styles["MemoTitle"]))
-    story.append(Spacer(1, 0.4 * inch))
+    story.append(Spacer(1, 0.35 * inch))
     story.append(HRFlowable(width="100%", color=colors.HexColor("#888888")))
-    story.append(Spacer(1, 0.25 * inch))
+    story.append(Spacer(1, 0.22 * inch))
     for line in meta_lines:
         story.append(Paragraph(inline_markdown(line), styles["Meta"]))
-    story.append(Spacer(1, 1.2 * inch))
+    if exec_summary_text:
+        # lives on page 1, after the header block and before §1 -- someone
+        # spending 90 seconds with this needs the verdict without flipping
+        # pages, so this is real title-page content, not just the next
+        # section in the normal flowing pipeline
+        story.append(Spacer(1, 0.3 * inch))
+        story.append(HRFlowable(width="100%", color=colors.HexColor("#888888")))
+        story.append(Spacer(1, 0.18 * inch))
+        story.append(Paragraph("EXECUTIVE SUMMARY", styles["H2"]))
+        story.append(Paragraph(inline_markdown(exec_summary_text), styles["Body"]))
+    story.append(Spacer(1, 0.45 * inch))
     story.append(Paragraph(
         "Portfolio deliverable — processed from raw returns, independently "
         "QC'd against vendor classification, flight-line geometry, and "
@@ -258,9 +268,25 @@ def split_items(block_lines, marker_re, strip_marker=None):
     return items
 
 
+def extract_front_matter_section(blocks, heading_text):
+    """Pull a '## <heading_text>' section (its heading block + the body
+    block immediately after it) out of the block list entirely, returning
+    the joined body text and the blocks list with those two blocks
+    removed. Used for the executive summary, which belongs on the title
+    page (page 1) rendered directly by title_page(), not in the normal
+    flowing section pipeline where it would land on page 2 regardless of
+    how much room page 1 has left."""
+    for i, b in enumerate(blocks):
+        if b[0].strip() == f"## {heading_text}":
+            body = blocks[i + 1] if i + 1 < len(blocks) else []
+            return " ".join(body), blocks[:i] + blocks[i + 2:]
+    return None, blocks
+
+
 def main():
     lines = MEMO.read_text(encoding="utf-8").splitlines()
     blocks = split_blocks(lines)
+    exec_summary_text, blocks = extract_front_matter_section(blocks, "Executive Summary")
 
     story = []
     meta_lines = []
@@ -302,7 +328,7 @@ def main():
             pending_heading = None
         if cur_key is None:
             if not started:
-                title_page(story, meta_lines)
+                title_page(story, meta_lines, exec_summary_text)
                 started = True
             return
         flush_section(story, cur_key, buf)
