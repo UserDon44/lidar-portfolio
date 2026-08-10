@@ -535,31 +535,72 @@ vendor's own class-2 points and ran `gdaldem slope -p`:
    — with window held constant across all three attempts, this pointed at
    `window` as the actual bottleneck (SMRF's opening can't erode away
    clusters wider than the window).
-4. `w65_s0.6_t1.3` — widened window to 65 ft. Global raster stats looked
-   unchanged (min/max/mean identical to 3 decimals) — but this was a
-   **measurement artifact**: a direct diff against attempt 1 showed real
-   per-cell changes up to 8.08 ft (mean 0.096 ft). A zoomed 300×300 ft
-   crop comparison showed a marginal reduction in speckle, but the user
-   also noted **loss of real shadow/relief detail** — the wider window
-   was trading away genuine terrain fidelity for a weak vegetation
-   improvement. User confirmed some remaining texture is real rock, not
-   vegetation — geometry-only SMRF tuning can't fully separate small-scale
-   rock texture from sparse vegetation of similar size/height.
+4. `w65_s0.6_t1.3` — widened window to 65 ft. **This step is retracted;
+   see the correction note below.** It was originally recorded as showing
+   a real (if subtle) effect — a diff against attempt 1 up to 8.08 ft,
+   read as a marginal speckle reduction traded against a loss of real
+   shadow/relief detail. Both observations were artifacts of comparing
+   against the wrong baseline: `dem_tucson_w65_s0.6_t1.3.tif` is
+   byte-identical (checksum-verified, including an independent
+   from-scratch re-run of the pipeline) to attempt 3's output. Widening
+   `window` from 33 to 65 ft changed nothing on this tile.
 5. **`lastreturn_w33_s0.6_t1.3` — final.** Checked `NumberOfReturns` on
    this tile: 35.16% multi-return, mean 1.4137 (vs. the original tile's
    1.023) — real canopy penetration (cacti, palo verde, ironwood), and a
    physically-grounded signal instead of pure geometry. Added
    `filters.returns` (`groups: "last,only"`) before ELM/outlier/SMRF to
-   drop first/intermediate returns (near-certain canopy hits), and reverted
-   window back to 33 ft (recovering detail quality, since SMRF no longer
-   carries the full vegetation-rejection load alone). Result: shadow/detail
-   crispness back to attempt-1 quality; fine speckle persisted at similar
-   density. **User-confirmed conclusion**: this is expected, not a
-   failure — a solid single-return cactus hit is physically indistinguishable
-   from a solid rock hit by return-count alone. Further separation would
-   need intensity-based classification or co-registered NDVI/multispectral
+   drop first/intermediate returns (near-certain canopy hits). Window
+   stayed at 33 ft — not "reverted," since attempt 4 never actually moved
+   it anywhere (see above). Result: shadow/detail crispness matches
+   attempts 1–3; fine speckle persisted at similar density.
+   **User-confirmed conclusion**: this is expected, not a failure — a
+   solid single-return cactus hit is physically indistinguishable from a
+   solid rock hit by return-count alone. Further separation would need
+   intensity-based classification or co-registered NDVI/multispectral
    data, outside this project's scope. **Stopped here as a defensible,
    documented stopping point** ("Matches my read" — user agreed).
+
+**Correction (2026-08-10, later session)**: item 4 above was wrong.
+Checksums across all five iteration DEMs show only attempts 3 and 4
+(`dem_tucson_w33_s0.6_t1.3.tif` / `dem_tucson_w65_s0.6_t1.3.tif`) are
+byte-identical; verified two ways — a direct MD5 comparison, and an
+independent from-scratch re-run of `pipe_tucson_w65_s0.6_t1.3.json` to
+rule out a stale/corrupted file. The original "8.08 ft diff" was real,
+but it was measured against attempt 1, which had already diverged from
+attempt 3 via the slope/threshold changes in attempts 2 and 3 — it was
+re-detecting that earlier change, not the window change, because it
+diffed against the wrong baseline (attempt 1 instead of the immediately
+preceding attempt 3). The "loss of shadow/relief detail" read on
+attempt 4 was almost certainly the same file as attempt 3 evaluated
+twice and perceived differently, not a real effect.
+**Consequence: the empirical claim that widening `window` trades detail
+for reduced speckle on this tile is unsupported and retracted.** The a
+priori design reasoning for keeping `window` narrow here (avoiding a
+window wide enough to cut across real ridges/gullies) still stands as
+reasoning — it was just never actually tested; only the threshold change
+(1→2) and slope change (2→3) are confirmed real by checksum.
+
+**Mechanism, found in PDAL's own source** (`filters/SMRFilter.cpp`,
+`progressiveFilter()`, PDAL 2.10.0): `window` is a genuine linear-unit
+distance, converted to a pixel radius via `max_radius =
+ceil(window / cell)` — for this tile (cell 1.6 ft), window 33 ft → radius
+21, window 65 ft → radius 41. Not a units bug, not extent clamping. But
+the algorithm progressively opens the surface from radius 1 up to
+`max_radius`, flagging non-ground cells against a threshold that grows
+with radius too (`threshold = slope * cell * radius`) — so once the
+structuring element exceeds the largest real non-ground feature actually
+present in the data, further radius growth stops flagging anything new.
+For this tile, whatever separates ground from non-ground apparently
+converges well before radius 21, so 21 and 41 give identical output.
+This is corroborated by the *same* pattern on the original tile's own
+window sweep (see item #1 above): `dem_w120_s0.15_t1.6.tif`,
+`dem_w180_s0.15_t1.6.tif`, and `dem_w240_s0.15_t1.6.tif` are all
+byte-identical to each other (radii 37/55/73 at cell 3.3 ft), while
+`dem_w60_t16.tif` (radius 19) differs from all three — convergence
+somewhere between window 60 and 120 ft on that tile, exactly the kind of
+threshold this mechanism predicts. Window only matters up to the scale
+of the largest real feature in the data; beyond that, more window is a
+no-op by construction, on both tiles.
 
 **Final parameters**: `filters.returns groups=last,only` →
 ELM (cell 33 ft, threshold 3.3 ft) → statistical outlier (mean_k 8,

@@ -414,10 +414,10 @@ def main():
     story.append(Paragraph(
         "Supporting hillshades referenced in \u00a74 (roof vs. pad "
         "investigation): the vendor-delivered classification baseline "
-        "and the first SMRF parameter attempt (window=60 ft), shown here "
-        "to demonstrate that widening the window from 60 to 240 ft did "
-        "not change the residential-block rectangles \u2014 evidence that "
-        "ruled out an unremoved-roof explanation.", styles["Body"]))
+        "and the first SMRF parameter attempt (window=60 ft) \u2014 the one "
+        "tested window value that produced a genuinely distinct result "
+        "(see \u00a74 for the full four-value comparison and why 120, 180, "
+        "and 240 ft converge to an identical output).", styles["Body"]))
     # Side by side, not one full page each -- these are corroborating
     # evidence for a point already made in §4, not primary figures,
     # so they don't need primary-figure-sized real estate.

@@ -50,11 +50,16 @@ silently left Z in meters while X/Y converted correctly, since the
 target CRS has no vertical component for `filters.reprojection` to act
 on). Measured real terrain slope directly (median 28%, p90 91.5%) rather
 than guessing SMRF parameters, then iterated through 5 parameter sets —
-two of which produced no visible change at all (a useful negative
-result that correctly pointed at `window`, not slope/threshold, as the
-real lever) — before finding that steep terrain and real vegetation
-canopy needed a fundamentally different approach (last/single-return
-prefiltering) than the flat original tile. Landed on a final,
+two of which (threshold, then slope) produced no visible change at all,
+correctly ruling both out. A later attempt to widen the SMRF `window`
+was believed at the time to show a real, if subtle, tradeoff (detail
+lost for a marginal speckle reduction) but was found in a later session
+to be a no-op — that output file is byte-identical to the previous
+attempt, confirmed by an independent re-run — so `window` was never
+actually validated as the controlling lever here; see CLAUDE.md's
+correction note under item #10. The real fix ended up being a
+fundamentally different approach (last/single-return prefiltering) than
+the flat original tile, not a window change. Landed on a final,
 user-confirmed defensible parameter set and stopped deliberately rather
 than continuing to chase a rock-vs-cactus ambiguity that this data can't
 resolve.
@@ -143,3 +148,60 @@ Verified the final 18-page PDF page-by-page via `pymupdf` (installed
 this session for local PDF-to-PNG QC rendering, since no system PDF
 renderer was available) rather than trusting the build succeeding
 without errors.
+
+## 2026-08-10
+
+**Second-tile scoping, and a real correction to the record**
+Started scoping a standalone Tucson Mountains deliverable (parameter
+adaptation across terrain, distinct from the San Xavier QC report).
+Verified San Xavier vs. Tucson tile characteristics fresh against the
+actual point clouds rather than quoting `CLAUDE.md` from memory (point
+counts, density, classification breakdown, relief excluding noise
+classes, NumberOfReturns distribution) — all matched documented values.
+Ran the batch processor for Tucson; it correctly skipped (output already
+current for the configured parameters).
+
+Built a first figure set for the case study — terrain-slope context, a
+three-panel "no visible change" comparison, and a three-panel
+"window-tradeoff" comparison reusing the five already-existing iteration
+DEMs. Caught, before shipping any of it, that the window-tradeoff
+figure's caption claimed a "less speckle" effect that wasn't actually
+visible in the hillshade at print size — the exact measurement-artifact
+mistake `CLAUDE.md` already documented once for this same comparison.
+Checking the underlying data instead of the caption's claim found
+something bigger: `dem_tucson_w65_s0.6_t1.3.tif` (window=65) is
+byte-identical to `dem_tucson_w33_s0.6_t1.3.tif` (window=33) — confirmed
+via checksum and an independent from-scratch pipeline re-run, ruling out
+a stale file. The originally-documented "8.08 ft diff" for this step was
+real, but measured against the wrong baseline (attempt 1, which had
+already diverged via the threshold and slope changes in attempts 2–3),
+so it was re-detecting an earlier change, not a window effect. Corrected
+`CLAUDE.md`, this log, and `PROJECT_SUMMARY.md` — a wrong record left
+uncorrected is a hazard to every future session, not just the current
+deliverable.
+
+Checked whether the same issue affects the San Xavier report's own
+window sweep (60/120/180/240 ft, cited in §4 as evidence for the
+roof/pad finding): `w120`, `w180`, and `w240` are all byte-identical to
+each other; only `w60` differs. So that claim is directionally true but
+overstated — two genuinely distinct configurations were tested, not
+four; the top three of four attempted values happened to converge.
+
+Found the actual mechanism in PDAL's source rather than speculating
+(`filters/SMRFilter.cpp`, `progressiveFilter()`, PDAL 2.10.0, fetched
+from the PDAL GitHub repo at the installed version's tag): `window` is a
+genuine linear-unit distance, correctly converted to a pixel radius via
+`ceil(window / cell)` — not a units bug, not extent clamping. The
+algorithm progressively opens the surface up to that radius with a
+threshold that grows alongside it, so once the structuring element
+exceeds the largest real non-ground feature actually present in the
+data, further radius growth is a no-op by construction. San Xavier's own
+window sweep corroborates this exactly: convergence somewhere between 60
+and 120 ft there, consistent with the pad features (~70–100 ft) sitting
+inside that range, while Tucson's vegetation/rock texture apparently
+converges well below its tested range (33–65 ft), so neither tested
+value mattered.
+
+San Xavier's `qc_report.pdf`/`qc_memo.md` §4 has not been edited yet —
+reported the finding first, per instruction, before touching a report
+that's already been reviewed and approved.

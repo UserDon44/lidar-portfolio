@@ -355,27 +355,33 @@ parameter iterations followed:
    useful negative result that ruled threshold out as the controlling
    parameter.
 3. Backing slope off toward the measured median, plus a slower scalar,
-   **also produced no visible change** — with window held constant
-   across all three attempts, this correctly pointed at window as the
-   real bottleneck (SMRF's morphological opening cannot erode away
-   vegetation clusters wider than the window itself).
-4. Widening the window did change the result — but the change was
-   invisible in whole-tile summary statistics and only showed up in a
-   direct per-cell difference (up to 8.08 ft locally). The wider window
-   also traded away real terrain detail (confirmed visually — the
-   project owner specifically noted a loss of shadow/relief crispness)
-   for only a marginal reduction in vegetation speckle.
+   **also produced no visible change** — both threshold and slope ruled
+   out as the controlling lever, with window held constant across all
+   three attempts.
+4. A widened-window attempt was originally believed to show a real,
+   subtle tradeoff (per-cell change up to 8.08 ft, a marginal speckle
+   reduction against a loss of shadow/relief detail). **This was later
+   found to be wrong**: the output file is byte-identical to attempt 3's
+   (checksum-verified, including an independent from-scratch re-run),
+   so widening the window changed nothing on this tile, and neither
+   observation reflected a real effect. Full correction, including the
+   PDAL-source-level mechanism, is in `CLAUDE.md` under item #10 — in
+   short, SMRF's progressive window-opening algorithm converges once the
+   structuring element exceeds the largest real non-ground feature in
+   the data, so beyond that scale a wider window is a no-op by
+   construction. Window was therefore never actually validated as the
+   controlling parameter on this tile.
 5. The real fix was recognizing that 35.16% of this tile's points are
    multi-return (vs. 1.023 mean on the primary tile) — genuine physical
    evidence of canopy penetration. Filtering to last/single returns only
    before classification (removing near-certain canopy hits by their
    actual return geometry, not by guessing at geometry-only slope
-   parameters) allowed the window to be reverted back to 33 ft, recovering
-   full terrain detail. The remaining fine texture was confirmed to be a
-   mix of real rock and solid single-return vegetation (e.g., a cactus)
-   that are genuinely indistinguishable by return count or SMRF geometry
-   alone — accepted as a permanent, documented limitation of this data
-   rather than something to keep chasing.
+   parameters), with window kept at 33 ft throughout (never actually
+   moved, per the correction above). The remaining fine texture was
+   confirmed to be a mix of real rock and solid single-return vegetation
+   (e.g., a cactus) that are genuinely indistinguishable by return count
+   or SMRF geometry alone — accepted as a permanent, documented
+   limitation of this data rather than something to keep chasing.
 
 Final parameters: last/single-return filter → SMRF window 33 ft, slope
 0.6, threshold 1.3 ft, scalar 0.75, cell 1.6 ft.

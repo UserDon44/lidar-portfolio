@@ -220,11 +220,34 @@ acquisition time (see §7), so this is corroborating, not primary,
 evidence; the elevation-plateau argument above remains the direct
 evidence from the dataset itself.
 
-Widening the SMRF `window` from 60 to 240 ft did not remove these features.
-Cause: the pad footprints (~70–100 ft across) approach the SMRF window size
-being tested, so the morphological-opening surface model is pulled upward
-within the window and treats the pad top as terrain — a known SMRF
-limitation at this scale, not a pipeline defect.
+Four SMRF `window` values were tested — 60, 120, 180, and 240 ft — but
+they produced only **two distinct results**, not four: `dem_w60_t16.tif`
+differs from the other three, while `dem_w120_s0.15_t1.6.tif`,
+`dem_w180_s0.15_t1.6.tif`, and `dem_w240_s0.15_t1.6.tif` are
+byte-identical to each other (checksum-verified). That convergence is
+itself the more useful result.
+
+`window` is a linear-unit distance, converted internally to a pixel
+radius via `ceil(window / cell)` (PDAL 2.10.0, `filters/SMRFilter.cpp`).
+At this run's cell size (3.3 ft), the four tested windows map to radii
+19, 37, 55, and 73 px. SMRF progressively opens the surface from radius
+1 up to that maximum, flagging non-ground cells against a threshold that
+grows with radius too — so once the structuring element exceeds the
+largest real non-ground feature actually present in the data, further
+radius growth stops changing the classification. The observed
+convergence, somewhere between 60 ft (radius 19) and 120 ft (radius 37),
+lines up with the pad footprints measured at **~70–100 ft across**: once
+the window reaches roughly that scale the algorithm has already "seen"
+the full pad, and widening it further adds nothing. That's a
+quantitative match, not a coincidence, and a stronger piece of evidence
+for the pad interpretation than a bare "widening didn't help" — the
+convergence point is exactly where the independently measured footprint
+size predicts it should be.
+
+*(No pipeline JSON was retained for the `w60` run — it predates this
+project's audit-trail convention of saving one per run, see §2 — so its
+parameters beyond `window=60` aren't independently verifiable from a
+saved artifact, only from this record.)*
 
 ## 5. Hydrologic Derivatives (Beyond Original Scope)
 
