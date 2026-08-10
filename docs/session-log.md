@@ -258,3 +258,94 @@ answered by checksum, never by eye or by whole-tile summary statistics
 
 **Tucson case study status**: figure set complete and verified; written
 narrative and assembled PDF not started.
+
+**A second audit, this time of CLAUDE.md's own numbers**
+The first audit covered the four deliverables; this one covered what
+`CLAUDE.md` carries that they don't, on the reasoning that a wrong number
+there propagates further than one in a report. Everything checkable
+verified exactly — the full vendor-diff outlier breakdown (6,510 cells;
+715/5,795 split; 3,879 west / 2,631 east; percentiles and extremes), swath
+percentiles and coverage, all 23 boundary crossings, class-2 shares, the
+NGS bounds lat/lon conversion to five decimals, Tucson's raw-header
+pseudo-relief, watershed acreage in square miles, every declared
+environment version including the WhiteboxTools binary, and both
+`batch_qc.csv` void counts. One real defect: `batch_qc_README` defined
+`z_min_ft`/`z_max_ft` as "the range actually present in the output DEM"
+when it is actually PDAL's stats on the ground-classified *points* — the
+raster range is narrower because IDW smooths extremes. Corrected. Two
+non-errors flagged for the record: the two raw-file sizes use different
+conventions (33 MB decimal, 83.8 MB binary), and the centre-pivot circle's
+centre/radius is approximate landscape description that nothing depends on.
+
+**A false constraint, discovered by being challenged**
+The project had recorded, in three documents, that multi-tile seam
+buffering could not be implemented because "this project currently has
+zero pairs of spatially-adjacent tiles… so there's nothing to buffer from
+and no way to test the logic." That was never a property of the data — it
+was a property of what had already been downloaded. The entire Eastern
+Pima County collection is public; all eight tiles adjacent to `980398`
+sit on the same rockyweb path the original came from, 29.9–35.5 MB each,
+and one TNM API bbox query returns the whole 3x3 ring. Nobody ran that
+query. The constraint was inherited from the initial download scope and
+then restated as though it were a finding. Same shape as the other
+verification failures this project has hit: an assumption nobody tested,
+surviving because it was written down confidently.
+
+**Multi-tile seam baseline (item #12)**
+Downloaded the four edge-sharing neighbours (corners skipped — they share
+a single point and contribute almost nothing to a seam test at equal
+cost). Verified CRS from LAZ headers *before* processing, given the Tucson
+tile's silent metres-in-Z precedent: all five are EPSG:6405 feet and each
+shares a full 5,000 ft edge. Added all four to `tile_params.json` with
+parameters identical to the centre tile, listed explicitly rather than
+left to `_default`, because identical parameters are a requirement of the
+experiment rather than a convenience.
+
+Wrote `scripts/measure_seams.py` (takes `--tag`, so the same code measures
+the buffered rerun). Adjacent tiles abut rather than overlap, so there is
+nothing to difference; the discontinuity is measured as the elevation step
+across the boundary, sampled the full 5,000 ft at 3 ft spacing, and
+compared against "pseudo-seams" inside the centre tile that measure
+natural terrain roughness with no boundary involved.
+
+The first run pooled that baseline across the whole tile and reported the
+E seam at 0.99x — apparently no artifact at all. That was wrong for a
+familiar reason: the east half is flat irrigated agriculture and the west
+has hills, so a tile-averaged baseline is the wrong reference. Recomputed
+per side, the E seam is 1.60x. All four seams show real excess: N 2.71x,
+S 3.23x, E 1.60x, W 1.40x, against local baselines of 0.14–0.29 ft RMS.
+The character is predominantly noise — systematic offsets are significant
+on three of four seams but small (0.016–0.103 ft) against spreads of
+0.219–0.642 ft, so this is per-cell disagreement rather than a datum-like
+shift. Two things flagged rather than asserted: the systematic components
+are the same order as the documented +0.124 ft flight-line offset and this
+measurement can't separate them, and the N/S seams being ~2x worse than
+E/W is consistent with flight lines running N–S but that's untested.
+
+**3D perspective rendering**
+Installed PyVista; confirmed off-screen rendering works here before
+building anything, since that was the main risk. `scripts/render_3d.py`
+drapes the hillshade as a real VTK texture (so detail survives mesh
+decimation) with camera bearing, elevation, exaggeration, distance and
+decimation all on the CLI. Vertical exaggeration goes in both the filename
+and an on-image caption — neither alone survives, since filenames are lost
+on paste and captions on rename — along with true vs apparent slope so a
+viewer can calibrate. Two bugs caught while iterating: caption relief was
+computed from the decimated array (under-reports, and would drift with
+`--decimate`), and the first renders showed vertical "curtain" cliffs at
+the tile edge. The initial diagnosis was wrong — ordinary voids, fixed
+with `hide_cells`, which worked correctly and changed nothing. Mapping the
+void mask found the real cause: the reprojected tile carries a *tapering*
+nodata wedge from the UTM→State Plane rotation, ~1,175 void cells in row 0
+decaying to 11 by row 10, plus an 11-cell sliver down both sides. Fixed by
+auto-trimming to the smallest inset with zero voids.
+
+**Global preferences file**
+Created `~/.claude/CLAUDE.md` with cross-project working practices, kept
+to ~60 lines with project specifics deliberately excluded. Each rule
+carries the failure that produced it rather than standing as generic best
+practice, since the failure is what makes the rule persuasive later.
+
+**Session state**: item #12 baseline complete and committed; `--buffer-ft`
+not started. That is the next task and the deliverable is the before/after
+seam number.

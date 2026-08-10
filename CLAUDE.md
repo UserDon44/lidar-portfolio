@@ -98,18 +98,24 @@ can't run `conda activate`) fails in confusing ways:
 
 ```
 lidar-portfolio/
-  data/raw/            3 source tiles — NEVER modify. Gitignored.
+  data/raw/            7 source tiles — NEVER modify. Gitignored.
+                        (San Xavier 980398 + its 4 edge neighbours for
+                        item #12, plus the Tucson tile raw + reprojected)
   data/control/        NGS control points — empty; investigated via API
                         instead (item #5), concluded no usable in-tile
                         control exists. Left empty deliberately, not todo.
   scripts/             run_dem.py, compare_vendor.py, batch_process.py,
                         tile_params.json, hydrology_0[1-8]_*.py,
-                        render_figures.py
+                        render_figures.py, render_tucson_figures.py,
+                        build_report.py, build_onepager.py,
+                        measure_features.py, measure_seams.py, render_3d.py
   scripts/pipelines/   auto-generated PDAL JSON, one per run (audit trail)
   output/dem/          DEMs, named by parameter. Gitignored (regenerated).
   output/hillshade/    hillshades, named by parameter. Gitignored.
   output/contours/     2 ft contours (item #7). Gitignored.
   output/hydrology/    fill/flow/streams/watershed (item #11). Gitignored.
+  output/seams/        multi-tile mosaic + seam products (item #12).
+                        Gitignored.
   output/figures/      presentation-quality PNGs for the report (scale
                         bar, north arrow, unit-labeled legends) — see
                         "How I want to work" below. Gitignored, same as
@@ -803,6 +809,85 @@ settings converge to the same result, that convergence point is itself
 informative — it's a rough, real measurement of the largest non-ground
 feature scale actually present in the data, not a dead end.
 
+## IN PROGRESS: multi-tile seam handling (item #12, started 2026-08-10)
+
+**Status: baseline measured and committed; buffering not yet implemented.**
+This is the highest-value remaining work — it converts what was recorded
+for the whole project as an untestable limitation into a measured
+before/after number.
+
+**The blocker was never real.** See the correction under Known
+Limitations: the eight tiles adjacent to `980398` were public the whole
+time. Four edge-sharing neighbours are now in `data/raw/` — `980403` (N),
+`980393` (S), `985398` (E), `975398` (W), 131.5 MB total. Corners were
+deliberately skipped: they share a single point, so they contribute
+almost nothing to a seam test at the same download and processing cost.
+
+**CRS verified before processing, not assumed** (the Tucson tile's
+silent metres-vs-feet bug is the precedent): all five tiles are EPSG:6405,
+unit `foot`, and each shares a full 5,000 ft edge with the centre tile —
+confirmed against LAZ header bounds rather than inferred from the
+`<easting>_<northing>` naming scheme. Note `975398` (W) reaches 3,171 ft
+against the centre tile's 2,655 ft; it contains higher hills, which
+matters for the baseline below.
+
+All four neighbours were added to `tile_params.json` with parameters
+**identical** to `980398`. That identity is a requirement of the
+experiment, not a convenience: any seam step must be attributable to
+missing cross-tile neighbourhood context, not to a parameter difference
+between adjacent runs. Listed explicitly rather than left to fall through
+to `_default`, so it's visibly deliberate.
+
+**Measurement method** (`scripts/measure_seams.py`, takes `--tag` so the
+identical code measures the buffered rerun): adjacent tiles abut rather
+than overlap, so there is no shared area to difference. The discontinuity
+is measured as the elevation STEP across the boundary — sample each tile
+1.5 ft inside its own edge so the two samples are 3 ft apart and straddle
+the seam, along the full 5,000 ft at 3 ft spacing.
+
+**A raw step means nothing alone**, so each seam is compared against
+"pseudo-seams" inside the centre tile — same 3 ft straddle, no boundary
+involved — measuring natural terrain roughness. **The baseline must be
+computed PER SIDE.** Pooled across the tile, the E seam looked clean
+(0.99x, i.e. no artifact at all); against terrain adjacent and parallel
+to it, it is 1.60x. The east half is flat irrigated agriculture and the
+west has hills, so a tile-averaged baseline is too coarse a yardstick and
+masked a real effect. This is the same class of error as the retracted
+`window` finding — a comparison against the wrong reference.
+
+| seam | seam RMS | local baseline | ratio | mean offset | t |
+|---|---|---|---|---|---|
+| N (980403) | 0.608 ft | 0.225 ft | **2.71x** | −0.049 ft | −3.3 |
+| S (980393) | 0.642 ft | 0.199 ft | **3.23x** | +0.103 ft | +6.6 |
+| E (985398) | 0.219 ft | 0.137 ft | **1.60x** | −0.016 ft | −3.0 |
+| W (975398) | 0.411 ft | 0.293 ft | **1.40x** | −0.062 ft | −6.3 |
+
+**All four seams show real excess discontinuity** (1.40–3.23x the natural
+terrain step beside them), so the limitation was genuine, not theoretical.
+**The character is predominantly noise**: excess *spread* dominates.
+Systematic offsets are statistically significant on three of four seams
+but small — 0.016–0.103 ft against spreads of 0.219–0.642 ft RMS. This is
+not a datum-like shift between tiles; it is neighbouring cells
+independently reaching slightly different answers.
+
+Two open questions, flagged rather than asserted:
+- The systematic components are the same order as the documented
+  +0.124 ft flight-line offset (item #4). Some of that mean offset may be
+  flight-line calibration rather than edge effect; this measurement
+  cannot separate them.
+- N/S seams are ~2x worse than E/W. Flight lines here run N–S, so E/W
+  seams run *parallel* to them while N/S seams cut *across* them. Plausible
+  mechanism, untested.
+
+Artifacts: `output/seams/mosaic_unbuffered.vrt`,
+`output/reports/seam_measurements_unbuffered.txt` (full output),
+`output/figures/fig11_seam_baseline.png`.
+
+**Next**: implement `--buffer-ft` in `batch_process.py` (spatial index over
+tile bounds → read neighbour margin → classify with margin → crop back to
+the true boundary before writing), reprocess, re-run `measure_seams.py`
+with the new tag, and report the before/after as the deliverable.
+
 ## Known Limitations
 
 **Tile-boundary edge effects (SMRF, not buffered).** SMRF's ground
@@ -869,6 +954,11 @@ All ten original items, plus everything added since, are done:
 9. ~~QC memo~~ — **DONE**
 10. ~~Second tile, harder terrain~~ — **DONE**
 11. ~~Hydrologic analysis (fill, flow, streams, watershed)~~ — **DONE**
+12. **Multi-tile seam handling — IN PROGRESS.** Baseline measured (all
+    four seams 1.40–3.23x local terrain roughness); `--buffer-ft` not yet
+    implemented. See the item #12 section above. This is the top
+    remaining priority — it turns a documented limitation into a measured
+    before/after number.
 
 Also done, beyond the original numbered plan: the batch processor
 (`scripts/batch_process.py`), the vertical-datum/sensor/NVA research
@@ -951,6 +1041,29 @@ narrative or assembled PDF yet. See item #10 above for why the figure
 set needed a full rebuild (a retracted "window trades detail for
 speckle" comparison that turned out to test nothing).
 
+**3D perspective rendering added 2026-08-10** (`scripts/render_3d.py`,
+PyVista + VTK, off-screen — verified working here with no X/OSMesa
+setup). Hillshade draped as a real texture rather than per-point scalars,
+so full hillshade detail survives on a decimated mesh. Vertical
+exaggeration is declared in both the filename and an on-image caption,
+which also gives true vs apparent cross-scene slope so a viewer can
+calibrate. Two bugs found and fixed while building it, both worth
+remembering: caption relief was being taken from the *decimated* array
+(under-reports, and would drift with `--decimate`), and the reprojected
+Tucson tile's ragged nodata fringe — a wedge tapering from ~1,175 void
+cells in row 0 to ~11 by row 10, plus an 11-cell sliver on the left and
+right columns, left from the UTM→State Plane rotation — rendered as
+vertical "curtain" cliffs. Fixed by auto-trimming to the smallest inset
+with zero voids (11 cells here). Diagnosed by mapping the void mask, not
+by guessing; the first hypothesis (ordinary voids, fixed with
+`hide_cells`) was wrong even though `hide_cells` itself worked.
+
+Remaining priority order (user-set, 2026-08-10):
+1. **Multi-tile seam handling** — item #12 above, baseline done,
+   `--buffer-ft` next. Top priority.
+2. **CSF vs SMRF method comparison** — not started.
+3. **Per-cell uncertainty surface** — not started.
+
 Remaining, purely optional:
 - Build the Tucson case-study narrative and assemble its PDF (see above).
 - Drop the ag-flagged segments from the hydrology stream vector entirely,
@@ -976,11 +1089,18 @@ source accuracy, scope discipline, executive summary), `ceb86b5`
 (`README.md` + one-page summary PDF), `b564d96` (window-parameter record
 correction — San Xavier §4 rewritten with the real, quantitative
 finding), `86850be` (Tucson case-study figures rebuilt around the
-corrected story). This `CLAUDE.md` update, plus `docs/session-log.md`,
-are being committed together right after this update (see the session
-log for the date).
+corrected story), `fda8d45` (SMRF window mechanism documented as a
+reusable result), `f7034a0` (§4/§3.6 measurements made reproducible; two
+contradicted numbers fixed), `fce465b` (`batch_qc_README` z-range
+definition corrected), `3f7316c` (session-closeout rule), `7f1a8bb`
+(PyVista 3D renderer + the four adjacent tiles, `measure_seams.py`, and
+the item-#12 baseline). This `CLAUDE.md` update, plus
+`docs/session-log.md`, are being committed together right after this
+update (see the session log for the date).
 
-- `data/raw/` now holds three files, all gitignored: the original tile,
+- `data/raw/` now holds seven files, all gitignored: the original tile,
+  its four edge-adjacent neighbours (`..._975398`, `..._980393`,
+  `..._980403`, `..._985398`, downloaded 2026-08-10 for item #12),
   the raw downloaded Tucson tile (`USGS_LPC_AZ_PimaCounty_2021_B21_484572.laz`,
   meters/UTM12N, kept as the untouched source), and the reprojected
   working copy (`tucson_mtns_484572_epsg6405.laz`, EPSG:6405 ft).
