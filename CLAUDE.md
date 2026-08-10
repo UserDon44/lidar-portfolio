@@ -1068,3 +1068,17 @@ log for the date).
   and a visual hillshade comparison produced a confident but entirely
   imagined read of the difference. `md5sum` the outputs. It takes one
   command and it is not fooled by expectation.
+- **Close out the session without being asked.** At the end of any
+  working session — or the moment I say we're stopping, wrapping up,
+  done for now, or anything equivalent — proactively update this file
+  and append a dated entry to `docs/session-log.md`. Don't wait for me
+  to remember, and don't ask whether I want it done; just do it and
+  tell me what changed. That means: fold in new findings, correct
+  anything this session proved wrong (corrections matter more than
+  additions — see the retracted `window` claim), refresh stale state
+  (commit list, page counts, next steps, open questions), and write the
+  log entry as a diary of what happened and why, not a duplicate of
+  this file. If the session ended mid-task, say so explicitly in both
+  places, including what was verified and what wasn't — an interrupted
+  session that records its own state honestly costs the next session
+  nothing; one that doesn't costs it a re-derivation.
