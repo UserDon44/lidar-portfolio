@@ -6,7 +6,7 @@
 **Vertical datum:** NAVD88, Geoid12A — confirmed against project documentation (Psomas
 2015 Vertical Accuracy Assessment; Sanborn Report of Survey, Aug 2015). Not declared in
 the delivered LAZ header itself, but sourced independently from both the accuracy
-assessment and the acquisition vendor's own report. See §6.
+assessment and the acquisition vendor's own report. See §7.
 **Sensor / acquisition:** Leica ALS70 HP, flown by Sanborn Map Co., Feb 20–26, 2015.
 Data classified QL2. Tile file itself finalized/repackaged later (LAS header shows a Nov 3,
 2015 creation date — normal lag for QC and final delivery, not a second acquisition).
@@ -41,7 +41,8 @@ Parameters were converted from PDAL/SMRF metric defaults to this tile's
 International Feet units (EPSG:9002, not US survey feet — see the CRS line
 above; e.g., an 18 m default window becomes 60 ft; 60 ft, 120 ft, 180 ft,
 and 240 ft were all tested — see §4). All pipeline JSON is retained per run
-in `scripts/pipelines/` as an audit trail.
+in `scripts/pipelines/` as an audit trail. The resulting bare-earth surface
+is shown in Figure 1.
 
 ## 3. Accuracy Assessment
 
@@ -65,7 +66,7 @@ residential area as expected going in — they hug the wash channel and cluster
 at one road/wash crossing, where both surfaces show the same feature (a
 culvert) and simply disagree by about a foot on the exact edge location — an
 IDW interpolation artifact at a sharp linear break, not a classification
-error.
+error. Spatial pattern in Figure 2.
 
 *Grid-alignment note:* PDAL's `writers.gdal` derives each run's raster extent
 from that run's own point-cloud bounding box, so two runs with different
@@ -128,7 +129,7 @@ and its published height was derived by datum-conversion (VERTCON3) rather
 than direct observation, with no published vertical order.
 
 **Update**: no control point-in-tile check is possible, as above, but the
-*project's own* authoritative NVA is now available (see header and §6) —
+*project's own* authoritative NVA is now available (see header and §7) —
 Psomas's 2015 vertical accuracy assessment for this exact collection,
 using 134 ASPRS-compliant check points across the ~2,203 sq mi project
 area (none of which happen to fall inside this specific 574-acre tile,
@@ -162,7 +163,7 @@ the higher-density band is the same 519/600 overlap zone from §3.3, and is
 almost void-free; the single-coverage strips on either side run at or below
 the QL2 floor. Voids follow the scanner's oscillating scan-line geometry
 (fine gaps between sweeps, healed wherever a second flight line overlaps)
-rather than clustering on the wash or any single feature.
+rather than clustering on the wash or any single feature. See Figure 4.
 
 ### 3.6 DSM/CHM tall-point check
 
@@ -177,7 +178,8 @@ open structure and also registering ground behind it. **Conclusion: a
 utility pole or small transmission/communications tower**, not sensor
 noise or a bird strike (which would show as a single isolated point, not
 a small coherent cluster) and not a building or vegetation (both ruled
-out by height and point density). Real feature, correctly retained.
+out by height and point density). Real feature, correctly retained. See
+Figure 5.
 
 ## 4. Feature Investigation: Roof vs. Pad
 
@@ -197,7 +199,76 @@ being tested, so the morphological-opening surface model is pulled upward
 within the window and treats the pad top as terrain — a known SMRF
 limitation at this scale, not a pipeline defect.
 
-## 5. Deliverables
+## 5. Hydrologic Derivatives (Beyond Original Scope)
+
+As an extension beyond the original nine-item QC plan, the bare-earth DEM was
+carried through a full hydrologic-conditioning and stream/watershed workflow
+using WhiteboxTools (neither QGIS nor GRASS was actually available in this
+environment, correcting an earlier assumption).
+
+### 5.1 Depression handling
+
+`BreachDepressionsLeastCost` was run first (minimal terrain modification),
+then `FillDepressions` on whatever remained. All 101,466 detected pits were
+resolved by the breach step alone — fill was genuinely a backstop, not the
+primary correction. Impact was quantified by direct DEM differencing (not a
+tool summary line), so it is independently verifiable:
+
+| Step | Cells changed | % of tile | Volume (cu ft) | Max raise | Max cut |
+|---|---|---|---|---|---|
+| Breach only | 170,297 | 6.13% | −116,457 (net cut) | +1.39 ft | −15.31 ft |
+| Residual fill | 53,815 | 1.94% | +179,471 (net fill) | +9.27 ft | 0.00 ft |
+| Total | 213,602 | 7.69% | +63,065 (net fill) | +9.31 ft | −15.31 ft |
+
+Re-classified by region — natural terrain west of the main wash, engineered
+ag surfaces east, and cells within 150 ft of any tile edge — using a
+|change| > 0.05 ft threshold:
+
+| Region | Changed cells | % of all changed | Volume (cu ft) |
+|---|---|---|---|
+| Natural terrain, west (not edge-adjacent) | 23,663 | 22.3% | −24,002 (net cut) |
+| Ag area, east (not edge-adjacent) | 64,678 | 61.0% | −29,351 (net cut) |
+| Tile-boundary-adjacent (either side) | 17,771 | 16.7% | +115,726 (net fill) |
+
+Real terrain, on both sides of the wash, is breach-dominated — a net cut,
+consistent with removing small pits rather than building up ground. Nearly
+all net *fill* volume instead concentrates within 150 ft of the tile edge,
+the same zone flagged in §7 for SMRF edge effects — both the ground
+classifier and the flow-routing algorithm lose neighborhood context at the
+same boundary. Most of what `FillDepressions` is correcting there is edge
+truncation artifact, not real terrain (Figure 6).
+
+### 5.2 Flow routing and stream network
+
+D8 flow direction and accumulation were computed on the conditioned DEM. A
+stream-extraction threshold was derived empirically via slope-area analysis
+— no clean break point was found in the data, a genuine negative result
+rather than a tuning failure — and cross-checked visually. The center-pivot
+irrigation field's circular wheel-track ring turned out to be geometrically
+indistinguishable from a real drainage channel to D8 routing at any
+threshold tested (Figure 7): tightening the threshold enough to erase the ring
+also erases real tributaries elsewhere in the tile, and no single number
+satisfies both. Rather than threshold-tune the artifact away, the delivered
+network (threshold = 5,000 cells / 1.03 ac) flags ag-area segments
+explicitly as "do not interpret as real drainage" (orange, Figure 8), separate
+from natural-terrain segments trusted as real (red).
+
+Final network: 323 vectorized segments, 108,068 ft (~20.5 mi) total length —
+`output/hydrology/streams_final_t5000.gpkg`.
+
+### 5.3 Watershed delineation
+
+The main wash's watershed was delineated from a pour point at the tile's
+north edge: **258.4 acres** within this tile. A boundary-crossing scan
+(checking every high-accumulation cell against all four tile edges)
+confirmed the system is through-flowing — it enters at the south edge (a
+minor 3.9-acre tributary) and exits at the north (the 258-acre main wash).
+The delineated watershed is therefore stated directly on the deliverable
+figure as a **lower bound** on the true catchment, not the complete
+drainage area (Figure 8) — the same tile-isolation caveat as §7's edge-effects
+limitation, applied to a drainage area instead of a ground surface.
+
+## 6. Deliverables
 
 | File | Description |
 |---|---|
@@ -208,10 +279,12 @@ limitation at this scale, not a pipeline defect.
 | `output/contours/contours_2ft_w120_s0.15_t1.6.gpkg` | 2 ft contours |
 | `output/dem/diff_VENDOR_minus_w120_s0.15_t1.6.tif` | Vendor comparison raster |
 | `output/dem/density_count_3ft_aligned.tif` | Per-cell point density |
-| `output/dem/catalog.vrt` | Virtual mosaic of all batch-processed tiles (see §7) |
+| `output/dem/catalog.vrt` | Virtual mosaic of all batch-processed tiles (see §8) |
 | `output/reports/batch_qc.csv` | Per-tile QC log (point counts, ground %, density, void %, runtime) |
+| `output/hydrology/streams_final_t5000.gpkg` | Derived stream network, ag-area segments flagged (§5.2) |
+| `output/hydrology/watershed_main_wash.gpkg` | Main wash watershed, 258.4 ac lower bound (§5.3) |
 
-## 6. Limitations & Recommendations
+## 7. Limitations & Recommendations
 
 - **Vertical datum: confirmed, not presumed.** NAVD88 via Geoid12A,
   sourced from the project's own accuracy assessment (Psomas, Feb 2015)
@@ -223,7 +296,7 @@ limitation at this scale, not a pipeline defect.
   not flagged as a failure by the certifying surveyor. VVA was not
   assessed by the vendor (project area classified entirely non-vegetated
   for accuracy-testing purposes). Full source citation, including why it's
-  treated as authoritative, in §8.
+  treated as authoritative, in §9.
 - **No external vertical control falls inside this specific tile** (§3.4)
   — the project's 134 check points are spread across the full ~2,203 sq
   mi collection area and none happen to land in this 574-acre tile. The
@@ -247,8 +320,17 @@ limitation at this scale, not a pipeline defect.
   so there is nothing to buffer from and no way to test the logic against
   real data. This should be revisited before processing any contiguous
   multi-tile project area.
+- **The derived stream network cannot separate a real channel from the
+  center-pivot field's wheel-track ring by geometry alone** (§5.2). This is
+  disclosed on the deliverable figure itself (ag-area segments flagged
+  orange) rather than resolved by threshold-tuning, since no threshold
+  clears the artifact without also losing real tributaries.
+- **The delineated watershed (258.4 ac) is a lower bound**, not the true
+  catchment (§5.3) — the same tile-isolation constraint as the SMRF
+  edge-effects limitation above, applied to flow routing instead of ground
+  classification.
 
-## 7. Batch processing (multi-tile)
+## 8. Batch processing (multi-tile)
 
 `scripts/batch_process.py` processes every tile in `data/raw/` using
 tile-specific SMRF parameters (`scripts/tile_params.json`), is idempotent
@@ -258,10 +340,10 @@ definitions in `output/reports/batch_qc_README.md`). All currently
 processed tiles are cataloged in `output/dem/catalog.vrt`. See CLAUDE.md
 for the full design rationale.
 
-## 8. Sources (project documentation, external to this analysis)
+## 9. Sources (project documentation, external to this analysis)
 
 The vertical datum, sensor, acquisition dates, and project NVA cited
-throughout this memo (§3.4, §6) are not derived from this project's own
+throughout this memo (§3.4, §7) are not derived from this project's own
 processing — they come from the original 2015 collection's project
 documentation, located on USGS's public distribution server in a path
 separate from the LAZ tile downloads themselves

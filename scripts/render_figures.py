@@ -25,6 +25,7 @@ from pathlib import Path
 ROOT = Path(r"C:\Users\ryans\lidar-portfolio")
 DEM_DIR = ROOT / "output" / "dem"
 HS_DIR = ROOT / "output" / "hillshade"
+HYDRO_DIR = ROOT / "output" / "hydrology"
 FIG_DIR = ROOT / "output" / "figures"
 FIG_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -252,6 +253,172 @@ def fig_hillshade(path, name, title, scalebar_ft=1000):
     print("saved", out)
 
 
+# ============================================================
+# 8. Hydrology overlay (streams + watershed + boundary caveat)
+#    Re-render of output/hydrology/hydrology_final_overlay.png with the
+#    same scale-bar/north-arrow/legend standard as everything else --
+#    the original predates that standard.
+# ============================================================
+def fig_hydrology_overlay():
+    import geopandas as gpd
+
+    fig, ax = base_axes(figsize=(11, 11))
+    hillshade_bg(ax)
+
+    streams = gpd.read_file(HYDRO_DIR / "streams_final_t5000.gpkg")
+    watershed = gpd.read_file(HYDRO_DIR / "watershed_main_wash.gpkg")
+    pour_pt = gpd.read_file(HYDRO_DIR / "pour_point_snapped.shp")
+    if pour_pt.crs is None:
+        pour_pt = pour_pt.set_crs("EPSG:6405")
+
+    region = gpd.read_file(HYDRO_DIR / "region_split_west_east.gpkg")
+    west_piece = region[region.region == "natural_west"].geometry.iloc[0]
+    streams_west = streams[streams.intersects(west_piece)]
+    streams_ag = streams[~streams.index.isin(streams_west.index)]
+
+    watershed.boundary.plot(ax=ax, color="cyan", linewidth=2, zorder=4)
+    streams_west.plot(ax=ax, color="red", linewidth=0.9, zorder=4)
+    streams_ag.plot(ax=ax, color="orange", linewidth=0.7, zorder=4)
+    pour_pt.plot(ax=ax, color="lime", markersize=70, marker="*", zorder=5)
+    ax.plot([984053.26], [398429.31], marker="v", color="yellow", markersize=9,
+            markeredgecolor="black", zorder=5)
+
+    from matplotlib.lines import Line2D
+    legend_elems = [
+        Line2D([0], [0], color="red", linewidth=1.5, label="Stream network, natural terrain"),
+        Line2D([0], [0], color="orange", linewidth=1.5,
+               label="Stream network, ag area (not real drainage \u2014 wheel-track artifact)"),
+        Line2D([0], [0], color="cyan", linewidth=2, label="Main wash watershed (lower bound, see caveat)"),
+        Line2D([0], [0], marker="*", color="lime", linewidth=0, markersize=13,
+               label="Main wash outlet, north edge, 258 ac"),
+        Line2D([0], [0], marker="v", color="yellow", linewidth=0, markersize=8,
+               markeredgecolor="black", label="Minor tributary entry, south edge, 3.9 ac"),
+    ]
+    ax.legend(handles=legend_elems, loc="lower left", fontsize=8, framealpha=0.92)
+
+    caveat = ("Tile is isolated (no adjacent tiles). Wash enters south (3.9 ac), exits\n"
+              "north (258 ac) \u2014 a through-flowing system. Watershed shown is a\n"
+              "LOWER BOUND on the true catchment, not the complete drainage area.")
+    ax.text(0.02, 0.98, caveat, transform=ax.transAxes, fontsize=8, va="top", ha="left",
+            bbox=dict(boxstyle="round", facecolor="white", alpha=0.88, edgecolor="black"), zorder=6)
+
+    ax.set_title("Derived stream network and main-wash watershed\n"
+                 "Threshold = 5,000 cells (1.033 ac), derived from slope-area analysis + visual validation")
+    add_scalebar(ax, 1000, loc=(0.62, 0.03))
+    add_north_arrow(ax, loc=(0.94, 0.94))
+    fig.tight_layout()
+    out = FIG_DIR / "fig08_hydrology_overlay.png"
+    fig.savefig(out)
+    plt.close(fig)
+    print("saved", out)
+
+
+# ============================================================
+# 9. Stream threshold, 3-panel story: artifact visible -> clean choice -> tributaries lost
+# ============================================================
+def fig_threshold_3panel():
+    thresholds = [1500, 5000, 20000]
+    labels = ["1,500 cells (0.31 ac)\nwheel-track ring clearly visible",
+              "5,000 cells (1.03 ac) \u2014 CHOSEN\nclean tributaries, ring still faint",
+              "20,000 cells (4.13 ac)\nring gone, but real tributaries lost too"]
+
+    hs_ds = rasterio.open(HS_DIR / "hs_w120_s0.15_t1.6.tif")
+    hs_full = hs_ds.read(1)
+    minx, maxx = 980120, 985105
+    miny, maxy = 399810, 401700
+    row0, col0 = hs_ds.index(minx, maxy)
+    row1, col1 = hs_ds.index(maxx, miny)
+    hs = hs_full[row0:row1, col0:col1]
+    extent = [minx, maxx, miny, maxy]
+
+    fig, axes = plt.subplots(1, 3, figsize=(15, 4.2), dpi=DPI)
+    for ax, t, label in zip(axes, thresholds, labels):
+        ax.imshow(hs, cmap="gray", extent=extent, origin="upper", zorder=1)
+        with rasterio.open(HYDRO_DIR / f"streams_t{t}.tif") as ds:
+            s_full = ds.read(1)
+            nd = ds.nodata
+        s = s_full[row0:row1, col0:col1]
+        mask = (s != nd) & (s > 0)
+        overlay = np.zeros((*s.shape, 4))
+        overlay[mask] = [1, 0.1, 0.1, 1]
+        ax.imshow(overlay, extent=extent, origin="upper", zorder=2)
+        ax.set_title(label, fontsize=9)
+        ax.set_xlabel("Easting (ft)", fontsize=8)
+        ax.tick_params(labelsize=7)
+        add_scalebar(ax, 500, loc=(0.04, 0.05))
+        add_north_arrow(ax, loc=(0.90, 0.85), size=0.09)
+    axes[0].set_ylabel("Northing (ft)", fontsize=8)
+
+    fig.suptitle("Stream extraction threshold: the pivot field's wheel-track ring cannot be "
+                 "cleared without losing real tributaries \u2014 no single number satisfies both",
+                 fontsize=10.5)
+    fig.tight_layout(rect=[0, 0, 1, 0.93])
+    out = FIG_DIR / "fig09_threshold_3panel.png"
+    fig.savefig(out)
+    plt.close(fig)
+    print("saved", out)
+
+
+# ============================================================
+# 10. Fill/breach impact, classified by region (natural-west / ag-east / edge)
+#     Re-render of output/hydrology/fill_impact_classified.png with the
+#     same scale-bar/north-arrow standard as everything else.
+# ============================================================
+def fig_fill_impact():
+    import geopandas as gpd
+    import shapely
+    from matplotlib.patches import Patch
+
+    fig, ax = base_axes(figsize=(11, 11))
+    hillshade_bg(ax)
+
+    fill_ds = rasterio.open(HYDRO_DIR / "fill_impact_total.tif")
+    fill = fill_ds.read(1)
+    transform = fill_ds.transform
+    minx, miny, maxx, maxy = fill_ds.bounds
+    changed = (fill != fill_ds.nodata) & (np.abs(fill) > 0.05)
+
+    rows_idx, cols_idx = np.indices(fill.shape)
+    xs, ys = rasterio.transform.xy(transform, rows_idx, cols_idx)
+    xs = np.array(xs).reshape(fill.shape)
+    ys = np.array(ys).reshape(fill.shape)
+
+    region_gdf = gpd.read_file(HYDRO_DIR / "region_split_west_east.gpkg")
+    west_piece = region_gdf[region_gdf.region == "natural_west"].geometry.iloc[0]
+    west_mask = shapely.contains_xy(west_piece, xs, ys)
+    edge_dist = 150
+    near_edge = ((xs - minx) < edge_dist) | ((maxx - xs) < edge_dist) | \
+                ((ys - miny) < edge_dist) | ((maxy - ys) < edge_dist)
+
+    cls_natural = changed & west_mask & ~near_edge
+    cls_ag = changed & ~west_mask & ~near_edge
+    cls_edge = changed & near_edge
+
+    overlay = np.zeros((*fill.shape, 4))
+    overlay[cls_natural] = [0.85, 0.1, 0.1, 1]
+    overlay[cls_ag] = [1.0, 0.75, 0.0, 0.85]
+    overlay[cls_edge] = [0.1, 0.4, 1.0, 1]
+    extent = [minx, maxx, miny, maxy]
+    ax.imshow(overlay, extent=extent, origin="upper", zorder=2)
+    region_gdf.boundary.plot(ax=ax, color="lime", linewidth=1.2, linestyle="--", zorder=3)
+
+    legend_elems = [
+        Patch(facecolor=[0.85, 0.1, 0.1, 1], label="Natural terrain, west (net cut, \u221224,002 cu ft)"),
+        Patch(facecolor=[1.0, 0.75, 0.0, 0.85], label="Ag area, east (net cut, \u221229,351 cu ft)"),
+        Patch(facecolor=[0.1, 0.4, 1.0, 1], label="Within 150 ft of tile edge (net fill, +115,726 cu ft)"),
+    ]
+    ax.legend(handles=legend_elems, loc="lower left", fontsize=8, framealpha=0.9)
+    ax.set_title("Breach/fill impact by region (|change| > 0.05 ft)\n"
+                 "Real terrain is breach-dominated; fill volume concentrates at the tile edge")
+    add_scalebar(ax, 1000, loc=(0.62, 0.03))
+    add_north_arrow(ax, loc=(0.94, 0.94))
+    fig.tight_layout()
+    out = FIG_DIR / "fig10_fill_impact.png"
+    fig.savefig(out)
+    plt.close(fig)
+    print("saved", out)
+
+
 if __name__ == "__main__":
     fig_vendor_diff()
     fig_swath_diff()
@@ -264,4 +431,7 @@ if __name__ == "__main__":
     fig_hillshade(HS_DIR / "hs_w60_t16.tif", "fig07_hillshade_w60.png",
                   "Hillshade \u2014 SMRF window=60ft, threshold=1.6ft (first attempt, "
                   "near-identical to w120 \u2014 supports item #1)")
+    fig_hydrology_overlay()
+    fig_threshold_3panel()
+    fig_fill_impact()
     print("\nAll figures written to", FIG_DIR)

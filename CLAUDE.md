@@ -770,8 +770,57 @@ All ten original items, plus everything added since, are done:
 Also done, beyond the original numbered plan: the batch processor
 (`scripts/batch_process.py`), the vertical-datum/sensor/NVA research
 (now a sourced, confirmed fact — see below), the CHM tall-point outlier
-investigation (§3.6 of the QC memo — a utility pole, not noise), and the
-International-vs-US-survey-foot correction across every file.
+investigation (§3.6 of the QC memo — a utility pole, not noise), the
+International-vs-US-survey-foot correction across every file, and a
+polished PDF deliverable (`scripts/build_report.py` →
+`output/reports/qc_report.pdf`, 17 pages, ~15.9 MB) that assembles
+`qc_memo.md` and all 10 rendered figures (`scripts/render_figures.py`,
+including a new `fig10_fill_impact.png`) into one report. `qc_memo.md`
+itself grew a new §5 "Hydrologic Derivatives" section this session
+(items #11's findings — pit/fill volumes, stream threshold reasoning,
+watershed lower-bound — had never been written into the memo text
+itself, only into figures/session memory), with sections 5–9 renumbered
+accordingly and every cross-reference (`§N`) updated to match.
+
+**`build_report.py` design notes** (for future edits to `qc_memo.md`):
+it parses the memo's markdown into reportlab flowables directly rather
+than hand-duplicating memo content — so editing `qc_memo.md` and
+re-running the script is the normal workflow, not editing the PDF
+script. It's a block-based parser (blank-line-separated blocks, not
+line-by-line) specifically because markdown soft-wraps continuation
+lines without blank lines between them — a line-by-line parser was
+tried first and silently fragmented wrapped list items and the
+`**Label:**` metadata block on the title page (each wrapped line was
+misread as a new, separate item). Figures are placed via `FIGURE_MAP`,
+keyed by exact section-heading text, at the end of whichever section's
+text first discusses them. Source figures render at 300 DPI in
+`render_figures.py` (kept full-res for standalone portfolio use) but
+`make_image()` re-encodes a downsampled copy at 170 DPI into
+`output/figures/_pdf_cache/` before embedding — skipping this dropped
+the PDF from 94.7 MB to 18.4 MB (later 15.9 MB, see below) with no
+visible quality loss at normal zoom. Table rows are wrapped in
+`KeepTogether` (small tables only, 4-6 rows) rather than left to
+reportlab's default mid-table page-splitting, which orphaned a header
+row alone at the bottom of a page with its data rows stranded on the
+next page, unrepeated.
+
+**Page count, checked against the original "~11 page" estimate**: final
+build is 17 pages (`§1–§9` heading positions checked directly against
+rendered page numbers, not eyeballed). Two real layout bugs inflated an
+early draft to 23 pages and were fixed before delivery: a forced page
+break before every top-level section wasted mostly-blank pages (23→20),
+and the ordered-list numbering bug above was also fragmenting list text
+into extra stray paragraphs (20→18). What's left is legitimately new
+content, not residual layout waste: §5 Hydrologic Derivatives (added
+this session, ~3 pages including 3 figures) didn't exist in the 11-page
+scope at all, and the original §1–§4 content alone already runs ~9
+pages once each accuracy-assessment figure gets a full page at
+readable size — the 11-page estimate simply predates both the
+hydrology section and a realistic figure-size accounting. One genuine
+layout tightening was still applied: the two appendix hillshades
+(secondary, corroborating evidence for §4, not primary figures) were
+moved from one full page each onto a single shared page, side by side
+(18→17).
 
 Remaining, purely optional:
 - Fold the Tucson tile's findings into a second QC memo/addendum, if the
@@ -830,3 +879,18 @@ together right after this update (see the session log for the date).
   home for this — it has shared scale-bar/north-arrow helpers so every
   figure looks consistent; add new figures to it rather than writing a
   one-off scratchpad script.
+- **Any computed result gets written into the memo at the time it's
+  computed, not reconstructed later.** Same root cause as the figures
+  rule above — treating memory/scratchpad as durable when it isn't —
+  and it has now bitten this project twice. First time: the vendor-diff,
+  swath-offset, density/void, and CHM figures existed nowhere when it
+  came time to build the report (see above). Second time: the entire
+  hydrologic-analysis workflow (item #11) was run, figured, and
+  captioned, but its actual numbers — pit counts, fill/breach volumes by
+  region, stream network length, watershed acreage — were never typed
+  into `qc_memo.md` itself, only produced as figures and session memory.
+  Writing the PDF report months later meant re-deriving those numbers
+  from saved rasters instead of just citing them. When a script prints a
+  number worth citing, that number goes into the memo text in the same
+  session it's computed — a stat that only exists in a terminal scrollback
+  or a chat transcript is one context-compaction away from gone.

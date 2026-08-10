@@ -105,9 +105,41 @@ from a boundary-crossing scan that also confirmed the system is
 through-flowing (enters south, exits north) — stated as a lower bound
 directly on the deliverable figure, not just in prose.
 
-**Documentation preservation (this entry)**
+**Documentation preservation**
 Brought `CLAUDE.md` current (it had drifted stale in several places — a
 false "QGIS installed" note, an outdated tile collection-date note, a
 Layout section describing several finished items as "todo," a commit
 list three commits behind), and created this log and
 `docs/PROJECT_SUMMARY.md` as durable, standalone project memory.
+
+**PDF deliverable (this entry)**
+Reviewed all 9 rendered QC figures (`scripts/render_figures.py`) for
+layout defects (legend/scale-bar/caveat-box collisions) before using
+them — all clean, including the two hydrology figures re-rendered
+earlier to the same scale-bar/north-arrow standard as the rest. Wrote
+the fill/breach-impact map as a tenth standardized figure (it existed
+only in an unstandardized form under `output/hydrology/`). Added a new
+§5 "Hydrologic Derivatives" section to `qc_memo.md` — item #11's actual
+numeric findings (pit/fill volumes by region, stream-network length,
+watershed acreage) had never been written into the memo text itself,
+only produced as figures — recomputing the region-classified impact
+stats fresh from the saved rasters rather than trusting a session-log
+summary number for anything that could be independently verified.
+Renumbered memo sections 5–9 and fixed every internal `§N` cross-
+reference. Built `scripts/build_report.py` (reportlab) to assemble the
+memo and all 10 figures into `output/reports/qc_report.pdf`. Hit and
+fixed three real bugs along the way: reportlab's ordered-list numbering
+came out as "1, 1, 2, 1" instead of "1, 2, 3, 4"; markdown table rows
+using an escaped `\|` for absolute-value bars split into the wrong
+column count and bled off the page edge; and a table's header row was
+left orphaned alone at the bottom of one page with its data stranded,
+unrepeated, on the next. Root-caused the list/table-adjacent paragraph
+mangling to a line-by-line parser not rejoining markdown's soft-wrapped
+continuation lines, and rewrote it as a block-based parser. Also caught
+that embedding all figures at their native 300 DPI produced a 94.7 MB
+PDF; re-encoding a downsampled (170 DPI) copy per figure before
+embedding cut it to 18.4 MB with no visible loss at normal zoom.
+Verified the final 18-page PDF page-by-page via `pymupdf` (installed
+this session for local PDF-to-PNG QC rendering, since no system PDF
+renderer was available) rather than trusting the build succeeding
+without errors.
