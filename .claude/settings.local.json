@@ -36,7 +36,11 @@
       "Bash(export PROJ_LIB=\"/c/Users/ryans/miniforge3/envs/lidar/Library/share/proj\")",
       "Bash(/c/Users/ryans/miniforge3/envs/lidar/Library/bin/gdal_contour.exe -a elev_ft -i 2.0 -f GPKG output/dem/dem_w120_s0.15_t1.6.tif output/contours/contours_2ft_w120_s0.15_t1.6.gpkg)",
       "WebFetch(domain:rockyweb.usgs.gov)",
-      "WebFetch(domain:tnmaccess.nationalmap.gov)"
+      "WebFetch(domain:tnmaccess.nationalmap.gov)",
+      "Read(//c/Program Files/**)",
+      "Read(//c/Program Files \\\\\\(x86\\\\\\)/**)",
+      "Read(//c/Users/ryans/AppData/Local/**)",
+      "Read(//c//**)"
     ]
   }
 }

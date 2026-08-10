@@ -568,6 +568,108 @@ given classification, QC, and final delivery all happen after acquisition.
 memo a real, citable NVA figure (8.8 cm bare-earth DEM RMSEz) instead of
 just this project's own internal/relative accuracy checks.
 
+## DONE: hydrologic analysis (item #11, beyond the original 10-item plan)
+
+Tooling: **WhiteboxTools** (`pip install whitebox`), not GRASS/QGIS — neither
+was installed in this environment, and WBT is a single lightweight package
+with purpose-built hydrology tools, no GIS desktop app required. Scripts:
+`scripts/hydrology_0[1-8]_*.py`. All outputs in `output/hydrology/`.
+Input: `dem_w120_s0.15_t1.6.tif` (the original tile's canonical DEM).
+
+**Depression handling**: `BreachDepressionsLeastCost` (dist=1000, min_dist)
+first — minimal terrain modification, carves through barriers rather than
+flooding — then `FillDepressions` (fix_flats) on whatever remained
+unbreached. All 101,466 pits were fully resolved by breaching alone (0
+unresolved). Impact quantified by direct DEM differencing, not a tool
+summary line:
+
+| Stage | Cells changed | Volume | Max change |
+|---|---|---|---|
+| Breach only | 170,297 (6.13%) | −116,457 cu ft (net cut) | −15.31 ft cut |
+| Residual fill | 53,815 (1.94%) | +179,471 cu ft (net fill) | +9.27 ft raise |
+
+**Spatial breakdown** (re-classified at a coarser, more meaningful 0.05 ft
+change threshold — 106,112 cells total, vs. 213,602 at the stage-1 script's
+more permissive 0.01 ft threshold; both numbers are real, they're just
+answering slightly different questions): split by the actual derived wash
+centerline (not a guessed line) into natural-west / ag-east, plus a
+separate tile-boundary-adjacent (<150 ft) flag:
+
+| Region | Cells | Volume | Note |
+|---|---|---|---|
+| Natural terrain, west of wash | 23,663 (22%) | −24,002 cu ft (net cut) | Breach-dominated — reassuring, see below |
+| Ag area, east of wash | 64,678 (61%) | −29,351 cu ft (net cut) | Expected — engineered surfaces |
+| Tile-boundary-adjacent (either side) | 17,771 (17%) | **+115,726 cu ft (net fill)** | Dominant fill volume; likely truncation artifacts |
+
+**Key finding**: the real (non-edge) terrain — both natural and ag — is
+**breach-dominated (net cut)**, not fill-dominated. The large net *fill*
+volume is concentrated almost entirely at the tile boundary. Checked one
+specific case directly: a 9.27 ft residual-fill blob at (985047, 403378),
+~50 ft from the NE corner — no data void, but genuine steep terrain right
+at the edge, consistent with a real depression whose natural outlet lies
+outside the tile (so it reads as artificially closed). This ties the
+fill-impact and boundary-truncation concerns together: truncation doesn't
+only affect flow accumulation/streams, it shows up as artifactual fill
+right at the edges too.
+
+**Flow direction/accumulation**: standard D8 (`D8Pointer` +
+`D8FlowAccumulation`).
+
+**Stream threshold — no clean statistical answer, so the visual check did
+the deciding**: slope-area analysis (log-log bins of local slope vs.
+contributing area) restricted to the natural terrain west of the wash
+(the full-tile version was contaminated by the ag fields' engineered,
+non-natural drainage geometry — a long flat 1.5-1.8% plateau spanning
+0.03-10 acres that isn't a real hillslope-to-channel signature). Even
+restricted to natural terrain, there was **no sharp break** — a steep
+initial decline (microtopographic noise near ridge crests, 0-200 sq ft)
+gives way to a *continued, gradually shallowing* decline out to several
+acres, then noise from small sample sizes beyond ~5 acres. This gave a
+loose prior (order of 0.03-2 acres), not a number.
+
+Extracted candidate networks at 50 to 40,000 cells and checked each
+against the hillshade, specifically including the pivot field in frame.
+**Important finding, not just a threshold-tuning note**: the pivot
+field's concentric wheel-track ring (a real, physically continuous
+depression — confirmed by its measured 0.50% design grade in the item-3
+internal-precision check) persists strongly through 1-2 acres and only
+fully clears around 4-8 acres — by which point real hillslope tributaries
+in the natural terrain are lost. **No single threshold satisfies both.**
+This isn't fixable by raising the number; a wheel rut is geometrically
+indistinguishable from a natural channel to D8 routing. Chose **5,000
+cells (45,000 sq ft / 1.033 ac)** — clean tributary structure in natural
+terrain — and instead flag/exclude the ag-area portion of the network in
+the deliverable rather than chase a bigger number.
+
+**Vectorized** (`RasterStreamsToVector`): 323 segments, ~108,068 ft total
+length (includes the flagged ag-area segments).
+
+**Boundary-crossing scan** (all 4 tile edges, cells above threshold):
+23 distinct crossings. Dominant ones: **north edge (982406, 403427),
+258.4 ac accumulated — the main wash outlet**; a second, smaller braided
+channel also exits north (983465, 403427), 152.5 ac; and critically, a
+**south edge entry (984053, 398429), 3.9 ac** — confirming the wash is
+**through-flowing** (enters south, exits north; tile's lowest elevations
+are near the NE corner, so drainage runs south-to-north here, consistent
+with the regional Santa Cruz River drainage). An east-edge crossing
+(985112, 399266), 25.1 ac, is a separate secondary drainage.
+
+**Watershed**: delineated from the main outlet (pour point snapped via
+`JensonSnapPourPoints`) using `Watershed`. **258.40 acres (0.4037 sq mi,
+45% of the tile)** — matches the outlet's own accumulation value exactly
+(consistency check passed). **Stated explicitly as a lower bound**, both
+in this file and directly on the deliverable figure itself: this tile is
+isolated (no adjacent tiles, same situation as the SMRF edge-effect
+limitation below), and a through-flowing system's true catchment
+necessarily extends beyond what a single tile can show.
+
+**Deliverables** (`output/hydrology/`): `dem_02_filled.tif` (corrected
+DEM), `d8_pointer.tif`, `d8_flow_accum_cells.tif`, `streams_final_t5000.gpkg`,
+`watershed_main_wash.gpkg`, `fill_impact_classified.png` (impact by
+region), `hydrology_final_overlay.png` (streams + watershed + caveats,
+for satellite comparison), plus the full threshold-comparison and
+slope-area figures as audit trail.
+
 ## Known Limitations
 
 **Tile-boundary edge effects (SMRF, not buffered).** SMRF's ground
