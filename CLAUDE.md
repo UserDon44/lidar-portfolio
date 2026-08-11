@@ -1312,6 +1312,18 @@ update (see the session log for the date).
   any *new* feature it reveals, especially near a data edge where
   texture stretching is worst. Confirm from the DEM (transect, profile,
   or difference) before it becomes a sentence anyone else reads.
+  **The image is kept, deliberately**, as
+  `output/figures/fig12_san_xavier_3d_ve10x_ARTIFACT_EXAMPLE_az110_el22.png`.
+  It is not a defective render and was not purged: it is a faithful 10x
+  view with its exaggeration correctly stated on the image, and what
+  failed was the reading of it. That makes it evidence for this rule
+  rather than something to delete, and the `ARTIFACT_EXAMPLE` in the
+  filename exists to stop anyone later mistaking it for a deliverable.
+  Note `render_3d.py` auto-names by label/VE/camera and will not
+  reproduce that marker on its own — regenerate the identical image with
+  `--ve 10 --azimuth 110 --elev 22 --distance 1.30 --decimate 1` plus an
+  explicit `--out`. The usable single-tile figure is the 5x version
+  alongside it.
 - **Close out the session without being asked.** At the end of any
   working session — or the moment I say we're stopping, wrapping up,
   done for now, or anything equivalent — proactively update this file
