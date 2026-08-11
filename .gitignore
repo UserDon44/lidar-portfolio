@@ -1,5 +1,12 @@
 data/raw/
 output/*
 !output/reports/
-.claude/
 scripts/__pycache__/
+
+# Claude Code config: track the policy, never the accumulated local allows.
+# NOTE: must be '.claude/*' plus negations, not '.claude/' -- git does not
+# traverse into a fully-excluded directory to find negation rules inside.
+.claude/*
+!.claude/settings.json
+!.claude/hooks/
+.claude/hooks/last_number_audit.txt
