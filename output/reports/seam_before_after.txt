@@ -1,0 +1,31 @@
+(1) PRIMARY -- buffered seams vs the FIXED unbuffered per-side baselines
+
+       RMS before  RMS after  baseline  ratio before  ratio after    change
+  N        0.6080     0.4116    0.2246         2.71x        1.83x     -0.87
+  S        0.6418     0.3797    0.1986         3.23x        1.91x     -1.32
+  E        0.2191     0.2112    0.1365         1.61x        1.55x     -0.06
+  W        0.4109     0.3851    0.2926         1.40x        1.32x     -0.09
+
+(2) Did the baseline itself move? (60/120 ft insets sit inside SMRF's ~122 ft reach)
+
+         before    after    change
+  N      0.2246   0.2372     +5.6%
+  S      0.1986   0.1980     -0.3%
+  E      0.1365   0.1390     +1.8%
+  W      0.2926   0.2884     -1.4%
+
+(3) RATIO-FREE -- raw seam RMS in feet, immune to any baseline question
+
+         before    after  delta ft    change
+  N      0.6080   0.4116   -0.1964    -32.3%
+  S      0.6418   0.3797   -0.2621    -40.8%
+  E      0.2191   0.2112   -0.0079     -3.6%
+  W      0.4109   0.3851   -0.0258     -6.3%
+
+(4) SYSTEMATIC COMPONENT -- mean offset and its significance
+
+        mean before      t    mean after      t    |mean| change
+  N         -0.0486   -3.3       -0.0168   -1.7           -65.4%
+  S         +0.1032   +6.6       +0.0627   +6.8           -39.2%
+  E         -0.0158   -3.0       -0.0106   -2.1           -32.9%
+  W         -0.0623   -6.3       -0.0656   -7.1            +5.3%  <-- WORSE

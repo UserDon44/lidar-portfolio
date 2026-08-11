@@ -25,7 +25,8 @@ PIPE_DIR = ROOT / "scripts" / "pipelines"
 
 
 def build_pipeline(tile, out_tif, window, slope, threshold, scalar, cell, res,
-                    last_return_only=False, stats_dimensions=None):
+                    last_return_only=False, stats_dimensions=None,
+                    neighbour_tiles=None, read_bounds=None, crop_bounds=None):
     """Return the PDAL pipeline as a dict.
 
     last_return_only: if True, insert a filters.returns stage (groups=
@@ -41,8 +42,37 @@ def build_pipeline(tile, out_tif, window, slope, threshold, scalar, cell, res,
         --metadata output. Used by the batch processor to get
         ground-point count and ground-only Z range without a second
         read of the file.
+
+    --- tile-edge buffering (item #12) ---
+
+    neighbour_tiles / read_bounds / crop_bounds together implement buffered
+    classification, which removes the edge artifact SMRF otherwise leaves at
+    a tile boundary (points there have no neighbourhood context because
+    whatever is just outside the tile isn't in the pipeline at all).
+
+    neighbour_tiles: additional LAZ paths read alongside `tile` and merged
+        with it, so the classifier sees across the boundary.
+    read_bounds: ([minx,maxx],[miny,maxy]) -- the tile's own extent grown by
+        the buffer distance. Applied right after the merge so the neighbours
+        contribute only a margin, not their entire contents.
+    crop_bounds: ([minx,maxx],[miny,maxy]) -- the tile's TRUE extent.
+        Applied after classification and before rasterizing, so the buffer
+        informs the ground/non-ground decision but never appears in the
+        output. Without this the DEMs would overlap and the mosaic would
+        double-cover every seam.
+
+    All three must be given together; passing none reproduces the original
+    unbuffered pipeline byte-for-byte.
     """
-    stages = [{"type": "readers.las", "filename": str(tile).replace("\\", "/")}]
+    readers = [{"type": "readers.las", "filename": str(tile).replace("\\", "/")}]
+    for n in (neighbour_tiles or []):
+        readers.append({"type": "readers.las", "filename": str(n).replace("\\", "/")})
+    stages = list(readers)
+    if len(readers) > 1:
+        stages.append({"type": "filters.merge"})
+    if read_bounds is not None:
+        # trim the neighbours down to just the margin before any real work
+        stages.append({"type": "filters.crop", "bounds": read_bounds})
     # wipe vendor classification - we classify from scratch
     stages.append({"type": "filters.assign", "assignment": "Classification[:]=0"})
     if last_return_only:
@@ -60,6 +90,10 @@ def build_pipeline(tile, out_tif, window, slope, threshold, scalar, cell, res,
                     "ignore": "Classification[7:7]"})
     # keep ground only
     stages.append({"type": "filters.range", "limits": "Classification[2:2]"})
+    if crop_bounds is not None:
+        # discard the buffer: it has done its job informing classification,
+        # and must not reach the raster or adjacent DEMs would overlap
+        stages.append({"type": "filters.crop", "bounds": crop_bounds})
     if stats_dimensions:
         stages.append({"type": "filters.stats", "dimensions": stats_dimensions})
     # rasterize

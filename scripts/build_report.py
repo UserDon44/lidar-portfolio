@@ -77,6 +77,18 @@ FIGURE_MAP = {
          "Figure 8. Derived stream network and main-wash watershed "
          "(258.4 ac, stated as a lower bound)."),
     ],
+    "6.1 Method": [
+        ("fig11_seam_baseline.png",
+         "Figure 9. The five-tile mosaic and the four measured seams. "
+         "Centre tile 980398 with its edge-sharing neighbours."),
+    ],
+    "6.2 Result": [
+        ("fig13_seam_before_after.png",
+         "Figure 10. Seam step RMS before and after 150 ft buffering, against "
+         "the natural 3 ft terrain step measured beside each seam (black). "
+         "Seams crossing the flight lines improve 32–41%; those parallel "
+         "to them, 4–6% — and none reach the natural-terrain line."),
+    ],
 }
 
 APPENDIX_FIGURES = [

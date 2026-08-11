@@ -349,3 +349,60 @@ practice, since the failure is what makes the rule persuasive later.
 **Session state**: item #12 baseline complete and committed; `--buffer-ft`
 not started. That is the next task and the deliverable is the before/after
 seam number.
+
+**Item #12 completed: buffered tile-edge classification**
+Implemented `--buffer-ft` in `batch_process.py` -- a header-bounds spatial
+index (deliberately not the `<easting>_<northing>` filename convention,
+which is one vendor's delivery scheme rather than a property of LAZ),
+neighbour selection by expanded-box intersection, then a pipeline that
+merges target + neighbours, crops to the expanded box, classifies, and
+crops back to the true tile bounds before rasterizing. Verified two things
+before trusting any result: that `--buffer-ft 0` reproduces the committed
+baseline pipeline byte-for-byte, and that the buffer does not leak into
+the output (buffered rasters occupy the identical grid, origin and
+dimensions as the unbuffered ones, so the comparison isn't confounded by
+a grid change). Caught one flaw in my own first version -- the `_buf150`
+tag was appended even for tiles with no neighbours, which would have
+asserted in the filename that an isolated tile was buffered when it
+wasn't; neighbours are now resolved before the output is named.
+
+The result is more interesting than "buffering helps". All four seams
+improved on RMS, but the improvement splits sharply by orientation:
+N -32.3%, S -40.8% (these cut across the N-S flight lines) against
+E -3.6%, W -6.3% (these run parallel to them). That split had been
+predicted from the unbuffered baseline alone, before the buffered run
+existed, on the reasoning that buffering cannot correct flight-line
+calibration error -- so the buffered run tested a standing prediction
+rather than being mined for a pattern afterwards, which is the stronger
+form of evidence and is stated that way in the memo.
+
+Deliberately kept two things out of a tidy "uniform improvement" story.
+First, one component of one seam regressed: the W seam's systematic
+offset grew -0.0623 -> -0.0656 ft, with its t strengthening from -6.3 to
+-7.1 -- and that t moved for two separable reasons, the bias growing
+slightly *and* the noise falling (sd -6.6%), which are worth not
+conflating. Second, buffering eliminated the discontinuity nowhere: all
+four seams remain at 1.32-1.91x the natural terrain step beside them,
+which is the honest ceiling of the technique on this data.
+
+Checked the obvious way this measurement could have flattered itself: the
+60/120 ft baseline insets sit inside SMRF's ~122 ft reach, so buffering
+could have moved the reference. It didn't (per-side baselines shifted
+-1.4% to +5.6%), and the numbers were reported against the fixed
+unbuffered baselines regardless.
+
+Also fixed a reproducibility defect from the previous session: the seam
+baseline figure had been rendered from a throwaway inline script and
+could not be rebuilt. Both seam figures now live in
+`scripts/render_seam_figures.py`, which calls `measure_seams.main()` for
+both variants rather than hardcoding values, so a figure cannot drift
+from the measurement it depicts.
+
+QC memo gained §6 "Tile-Boundary Buffering", sections renumbered 6-10 with
+cross-references updated, and the stale "edge effects are not corrected
+for / no adjacent tiles exist" limitation replaced by what was actually
+measured. Report rebuilt to 23 pages.
+
+**Open from this work**: buffer distance was never optimised. 150 ft was
+chosen to exceed SMRF's ~122 ft reach; whether a larger buffer improves
+the crossing seams further is untested and is the obvious next experiment.

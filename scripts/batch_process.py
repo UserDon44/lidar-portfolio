@@ -23,9 +23,18 @@ it needs a human sanity check, not a hidden automatic step.
 QC CSV column definitions are documented in
 output/reports/batch_qc_README.md, written alongside the CSV.
 
-Known limitation: SMRF ground classification degrades near a tile's edge
-(no neighborhood context beyond the tile boundary). This script does not
-buffer across adjacent tiles -- see "Known Limitations" in CLAUDE.md.
+SMRF ground classification degrades near a tile's edge, because points
+there have no neighbourhood context -- whatever lies just outside the tile
+isn't in the pipeline at all. `--buffer-ft N` fixes this: it reads a margin
+N ft into every adjacent tile, classifies with the margin included, then
+crops back to the true tile boundary before writing, so the buffer informs
+the ground/non-ground decision but never reaches the output. Adjacent DEMs
+therefore still abut exactly rather than overlapping.
+
+Default is 0 (unbuffered), which reproduces the original pipeline exactly
+-- the unbuffered baseline is what the buffered run is measured against
+(see item #12 in CLAUDE.md and scripts/measure_seams.py). Buffered output
+carries a `_buf<N>` tag so it never overwrites that baseline.
 """
 
 import argparse
@@ -54,7 +63,8 @@ INTL_FT_TO_M = 0.3048  # EPSG:6405 uses the international foot, not US survey fo
 
 CSV_FIELDS = [
     "tile", "status", "window", "slope", "threshold", "scalar", "cell", "res",
-    "last_return_only", "point_count", "ground_point_count", "ground_pct",
+    "last_return_only", "buffer_ft", "n_buffer_neighbours",
+    "point_count", "ground_point_count", "ground_pct",
     "z_min_ft", "z_max_ft", "point_density_per_m2", "void_cell_count",
     "void_cell_pct", "runtime_sec", "dem_path", "error_message",
 ]
@@ -122,6 +132,58 @@ processed tiles, not a seamless surface.
 """
 
 
+def tile_bounds(tile):
+    """(minx, maxx, miny, maxy) from the LAZ header. Header-only read."""
+    result = run(["pdal", "info", "--metadata", str(tile)])
+    m = json.loads(result.stdout)["metadata"]
+    return (m["minx"], m["maxx"], m["miny"], m["maxy"])
+
+
+def build_spatial_index(tiles):
+    """Map every tile path to its header bounds, once.
+
+    Deliberately reads headers rather than trusting the `<easting>_<northing>`
+    filename convention: that scheme is real for this collection but is a
+    property of one vendor's delivery, not of LAZ, and a tile named by a
+    different convention would be silently mis-placed.
+    """
+    index = {}
+    for t in tiles:
+        try:
+            index[t] = tile_bounds(t)
+        except Exception as e:
+            print(f"  [warn] {t.name}: could not read bounds, excluded from "
+                  f"buffering ({str(e).splitlines()[0][:80]})")
+    return index
+
+
+def find_neighbours(target, index, buffer_ft):
+    """Tiles whose extent intersects the target's extent grown by buffer_ft.
+
+    Uses a strict overlap test (>, not >=) so tiles that merely touch the
+    expanded box at a single point or edge contribute nothing; with
+    buffer_ft > 0 any genuine edge-sharing neighbour overlaps by a real
+    area and is caught.
+    """
+    if buffer_ft <= 0 or target not in index:
+        return []
+    tminx, tmaxx, tminy, tmaxy = index[target]
+    bx0, bx1 = tminx - buffer_ft, tmaxx + buffer_ft
+    by0, by1 = tminy - buffer_ft, tmaxy + buffer_ft
+    out = []
+    for other, (ominx, omaxx, ominy, omaxy) in index.items():
+        if other == target:
+            continue
+        if ominx < bx1 and omaxx > bx0 and ominy < by1 and omaxy > by0:
+            out.append(other)
+    return sorted(out)
+
+
+def pdal_bounds(minx, maxx, miny, maxy):
+    """PDAL's filters.crop bounds literal: ([minx,maxx],[miny,maxy])."""
+    return f"([{minx},{maxx}],[{miny},{maxy}])"
+
+
 def load_tile_params():
     raw = json.loads(PARAMS_FILE.read_text())
     default = {k: v for k, v in raw["_default"].items() if not k.startswith("_")}
@@ -144,15 +206,28 @@ def get_tile_srs_and_count(tile):
     return is_6405, srs_name, meta["count"]
 
 
-def process_tile(tile_path, params, force):
+def process_tile(tile_path, params, force, index=None, buffer_ft=0.0):
     row = {f: "" for f in CSV_FIELDS}
     row["tile"] = tile_path.name
     for k in ("window", "slope", "threshold", "scalar", "cell", "res", "last_return_only"):
         row[k] = params[k]
+    row["buffer_ft"] = buffer_ft
+
+    # Resolve neighbours BEFORE naming the output. A tile with no neighbours
+    # cannot be buffered no matter what was requested, and tagging it
+    # `_buf150` anyway would assert in the filename that buffering was
+    # applied when it wasn't -- and would pointlessly reprocess it.
+    neighbours = find_neighbours(tile_path, index or {}, buffer_ft) if buffer_ft > 0 else []
+    buffered = bool(neighbours)
+    row["n_buffer_neighbours"] = len(neighbours)
 
     tag = f"w{params['window']:g}_s{params['slope']:g}_t{params['threshold']:g}"
     if params["last_return_only"]:
         tag += "_lastreturn"
+    if buffered:
+        # distinct tag so buffered output never overwrites the unbuffered
+        # baseline -- the whole point is comparing the two
+        tag += f"_buf{buffer_ft:g}"
     out_stem = f"{tile_path.stem}_{tag}"
     dem_tif = DEM_DIR / f"dem_{out_stem}.tif"
     hs_tif = HS_DIR / f"hs_{out_stem}.tif"
@@ -176,12 +251,27 @@ def process_tile(tile_path, params, force):
 
         row["point_count"] = point_count
 
+        read_b = crop_b = None
+        if buffered:
+            minx, maxx, miny, maxy = index[tile_path]
+            read_b = pdal_bounds(minx - buffer_ft, maxx + buffer_ft,
+                                 miny - buffer_ft, maxy + buffer_ft)
+            crop_b = pdal_bounds(minx, maxx, miny, maxy)
+            print(f"     buffering {buffer_ft:g} ft from {len(neighbours)} "
+                  f"neighbour(s): {', '.join(n.stem[-6:] for n in neighbours)}")
+        elif buffer_ft > 0:
+            # isolated tile: nothing to buffer from. Not an error -- say so
+            # rather than implying the tile was buffered when it wasn't.
+            print(f"     no neighbours within {buffer_ft:g} ft; "
+                  f"processed unbuffered")
+
         pipeline = build_pipeline(
             tile_path, dem_tif,
             params["window"], params["slope"], params["threshold"],
             params["scalar"], params["cell"], params["res"],
             last_return_only=params["last_return_only"],
             stats_dimensions="Z",
+            neighbour_tiles=neighbours, read_bounds=read_b, crop_bounds=crop_b,
         )
         pipe_json.write_text(json.dumps(pipeline, indent=2))
 
@@ -238,6 +328,18 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--force", action="store_true",
                      help="reprocess tiles even if their DEM already exists")
+    ap.add_argument("--buffer-ft", type=float, default=0.0, metavar="FT",
+                     help="read a margin of points this far into adjacent tiles, "
+                          "classify with the margin included, then crop back to "
+                          "the true tile boundary before writing. 0 (default) "
+                          "reproduces the unbuffered pipeline exactly. Must "
+                          "exceed SMRF's reach -- ceil(window/cell) cells, "
+                          "~122 ft at window=120/cell=3.3 -- to cover the "
+                          "degraded edge zone; 150 is a reasonable starting "
+                          "point for this project's tiles.")
+    ap.add_argument("--csv", type=Path, default=CSV_PATH,
+                     help="QC CSV path; override to avoid overwriting a "
+                          "previous run's per-tile stats")
     args = ap.parse_args()
 
     for d in (DEM_DIR, HS_DIR, PIPE_DIR, REPORTS_DIR):
@@ -251,8 +353,14 @@ def main():
 
     print(f"Found {len(tiles)} tile(s) in {RAW_DIR}\n")
 
+    index = {}
+    if args.buffer_ft > 0:
+        print(f"Buffering enabled: {args.buffer_ft:g} ft. Indexing tile bounds...")
+        index = build_spatial_index(tiles)
+        print(f"  indexed {len(index)} tile(s)\n")
+
     rows = []
-    with open(CSV_PATH, "w", newline="") as f:
+    with open(args.csv, "w", newline="") as f:
         writer = csv.DictWriter(f, fieldnames=CSV_FIELDS)
         writer.writeheader()
         f.flush()
@@ -267,7 +375,7 @@ def main():
                       f"are NOT validated for this tile -- inspect the hillshade "
                       f"before trusting the result.")
 
-            row = process_tile(tile, params, args.force)
+            row = process_tile(tile, params, args.force, index, args.buffer_ft)
             rows.append(row)
             writer.writerow(row)
             f.flush()  # every tile's result is on disk before moving to the next
@@ -286,7 +394,7 @@ def main():
     n_skip = sum(1 for r in rows if r["status"].startswith("skipped"))
     n_err = sum(1 for r in rows if r["status"] == "error")
     print(f"\n=== Batch complete: {n_ok} processed, {n_skip} skipped, {n_err} failed ===")
-    print(f"QC log:  {CSV_PATH}")
+    print(f"QC log:  {args.csv}")
     print(f"README:  {README_PATH}")
     print(f"Catalog: {CATALOG_VRT}")
 

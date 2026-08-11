@@ -1,0 +1,75 @@
+{
+  "pipeline": [
+    {
+      "type": "readers.las",
+      "filename": "C:/Users/ryans/lidar-portfolio/data/raw/USGS_LPC_Eastern_Pima_County_Lidar_980398.laz"
+    },
+    {
+      "type": "readers.las",
+      "filename": "C:/Users/ryans/lidar-portfolio/data/raw/USGS_LPC_Eastern_Pima_County_Lidar_975398.laz"
+    },
+    {
+      "type": "readers.las",
+      "filename": "C:/Users/ryans/lidar-portfolio/data/raw/USGS_LPC_Eastern_Pima_County_Lidar_980393.laz"
+    },
+    {
+      "type": "readers.las",
+      "filename": "C:/Users/ryans/lidar-portfolio/data/raw/USGS_LPC_Eastern_Pima_County_Lidar_980403.laz"
+    },
+    {
+      "type": "readers.las",
+      "filename": "C:/Users/ryans/lidar-portfolio/data/raw/USGS_LPC_Eastern_Pima_County_Lidar_985398.laz"
+    },
+    {
+      "type": "filters.merge"
+    },
+    {
+      "type": "filters.crop",
+      "bounds": "([979962.76,985262.75],[398277.81,403577.8])"
+    },
+    {
+      "type": "filters.assign",
+      "assignment": "Classification[:]=0"
+    },
+    {
+      "type": "filters.elm",
+      "cell": 33.0,
+      "threshold": 3.3
+    },
+    {
+      "type": "filters.outlier",
+      "method": "statistical",
+      "mean_k": 8,
+      "multiplier": 3.0
+    },
+    {
+      "type": "filters.smrf",
+      "cell": 3.3,
+      "window": 120.0,
+      "slope": 0.15,
+      "threshold": 1.6,
+      "scalar": 1.25,
+      "ignore": "Classification[7:7]"
+    },
+    {
+      "type": "filters.range",
+      "limits": "Classification[2:2]"
+    },
+    {
+      "type": "filters.crop",
+      "bounds": "([980112.76,985112.75],[398427.81,403427.8])"
+    },
+    {
+      "type": "filters.stats",
+      "dimensions": "Z"
+    },
+    {
+      "type": "writers.gdal",
+      "filename": "C:/Users/ryans/lidar-portfolio/output/dem/dem_USGS_LPC_Eastern_Pima_County_Lidar_980398_w120_s0.15_t1.6_buf150.tif",
+      "resolution": 3.0,
+      "output_type": "idw",
+      "window_size": 6,
+      "nodata": -9999
+    }
+  ]
+}

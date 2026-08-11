@@ -6,7 +6,7 @@
 **Vertical datum:** NAVD88, Geoid12A — confirmed against project documentation (Psomas
 2015 Vertical Accuracy Assessment; Sanborn Report of Survey, Aug 2015). Not declared in
 the delivered LAZ header itself, but sourced independently from both the accuracy
-assessment and the acquisition vendor's own report. See §7.
+assessment and the acquisition vendor's own report. See §8.
 **Sensor / acquisition:** Leica ALS70 HP, flown by Sanborn Map Co., Feb 20–26, 2015.
 Data classified QL2. Tile file itself finalized/repackaged later (LAS header shows a Nov 3,
 2015 creation date — normal lag for QC and final delivery, not a second acquisition).
@@ -145,7 +145,7 @@ and its published height was derived by datum-conversion (VERTCON3) rather
 than direct observation, with no published vertical order.
 
 **Update**: no control point-in-tile check is possible, as above, but the
-*project's own* authoritative NVA is now available (see header and §7) —
+*project's own* authoritative NVA is now available (see header and §8) —
 Psomas's 2015 vertical accuracy assessment for this exact collection,
 using 134 ASPRS-compliant check points across the ~2,203 sq mi project
 area (none of which happen to fall inside this specific 574-acre tile,
@@ -219,7 +219,7 @@ does not contradict the pad interpretation; it corroborates it. The Feb
 existing building — a house built on that same pad sometime in the
 intervening decade is exactly what the 2015 measurement would predict.
 Present-day imagery cannot directly confirm ground conditions at
-acquisition time (see §7), so this is corroborating, not primary,
+acquisition time (see §8), so this is corroborating, not primary,
 evidence; the elevation-plateau argument above remains the direct
 evidence from the dataset itself.
 
@@ -312,7 +312,7 @@ ag surfaces east, and cells within 150 ft of any tile edge — using a
 Real terrain, on both sides of the wash, is breach-dominated — a net cut,
 consistent with removing small pits rather than building up ground. Nearly
 all net *fill* volume instead concentrates within 150 ft of the tile edge,
-the same zone flagged in §7 for SMRF edge effects — both the ground
+the same zone flagged in §8 for SMRF edge effects — both the ground
 classifier and the flow-routing algorithm lose neighborhood context at the
 same boundary. Most of what `FillDepressions` is correcting there is edge
 truncation artifact, not real terrain (Figure 6).
@@ -344,10 +344,100 @@ confirmed the system is through-flowing — it enters at the south edge (a
 minor 3.9-acre tributary) and exits at the north (the 258-acre main wash).
 The delineated watershed is therefore stated directly on the deliverable
 figure as a **lower bound** on the true catchment, not the complete
-drainage area (Figure 8) — the same tile-isolation caveat as §7's edge-effects
+drainage area (Figure 8) — the same tile-isolation caveat as §8's edge-effects
 limitation, applied to a drainage area instead of a ground surface.
 
-## 6. Deliverables
+## 6. Tile-Boundary Buffering (Multi-Tile)
+
+SMRF classifies each tile in isolation, so points near a tile edge have no
+neighbourhood context — whatever lies just beyond the boundary is not in
+that pipeline run at all. Two independently classified tiles therefore
+disagree where they meet. This section measures that disagreement and
+what buffering does to it.
+
+### 6.1 Method
+
+The four tiles edge-sharing with 980398 were obtained and processed with
+**parameters identical to the centre tile** — a requirement, not a
+convenience, since any seam step must be attributable to missing
+cross-tile context rather than to a parameter difference between
+adjacent runs.
+
+Adjacent tiles abut rather than overlap, so there is no shared area to
+difference. The discontinuity is measured as the **elevation step across
+the boundary**: each tile is sampled 1.5 ft inside its own edge, so the
+two samples lie 3 ft apart and straddle the seam, along the full 5,000 ft
+at 3 ft spacing. Because real terrain also changes over 3 ft, every seam
+is compared against **pseudo-seams inside the centre tile** — the same
+3 ft straddle with no boundary involved — which measure natural terrain
+roughness.
+
+That baseline is computed **per side**. Pooled across the tile it is
+misleading: the eastern half is flat irrigated agriculture and the west
+has hills, and against a tile-averaged baseline the E seam appeared to
+show no artifact at all (0.99×) when against terrain adjacent and
+parallel to it the figure is 1.60×. Re-derive with
+`python scripts/measure_seams.py --tag <variant>`.
+
+Buffering itself (`scripts/batch_process.py --buffer-ft 150`) reads a
+margin 150 ft into every adjacent tile, classifies with the margin
+included, then crops back to the true tile boundary before rasterizing —
+so the buffer informs the ground/non-ground decision but never reaches
+the output, and adjacent DEMs still abut exactly rather than overlapping.
+150 ft was chosen to exceed SMRF's own reach, `ceil(window/cell)` = 37
+cells ≈ 122 ft at this tile's parameters.
+
+### 6.2 Result
+
+| Seam | Unbuffered RMS | Buffered RMS | Change | Local natural step | Ratio before → after |
+|---|---|---|---|---|---|
+| N | 0.608 ft | 0.412 ft | **−32.3%** | 0.225 ft | 2.71× → 1.83× |
+| S | 0.642 ft | 0.380 ft | **−40.8%** | 0.199 ft | 3.23× → 1.91× |
+| E | 0.219 ft | 0.211 ft | −3.6% | 0.137 ft | 1.61× → 1.55× |
+| W | 0.411 ft | 0.385 ft | −6.3% | 0.293 ft | 1.40× → 1.32× |
+
+**The headline is not the improvement percentages — it is that buffering
+removes the edge-effect component and nothing else.** The evidence is the
+split by seam orientation. This collection's flight lines run north–south.
+The N and S seams cut *across* them and improve by 32–41%; the E and W
+seams run *parallel* to them and improve by 4–6%.
+
+That split was **predicted before the buffered results were computed**,
+from the unbuffered baseline alone: the N/S seams were already ~2× worse
+than E/W, and flight-line orientation was recorded at the time as the
+plausible mechanism. The buffered run tested that prediction rather than
+being used to generate it — which is a stronger form of evidence than the
+same pattern noticed after the fact. Buffering cannot correct flight-line
+calibration error, so on seams whose residual disagreement is dominated by
+it, buffering should do almost nothing. It does almost nothing. The
+residual systematic offsets on S (+0.063 ft) and W (−0.066 ft) are the
+same order as the +0.124 ft inter-swath offset independently measured in
+§3.3.
+
+**One seam degraded, in one component.** The W seam's systematic offset
+grew from −0.0623 ft to −0.0656 ft, +5.3% in magnitude, and its
+t-statistic strengthened from −6.3 to −7.1. That t is driven by two
+separate changes and they should not be conflated: the bias itself grew
+slightly, *and* the noise around it fell (sd −6.6%), which makes the same
+bias easier to detect. So W's random component improved while its
+systematic component regressed. In absolute terms the regression is
+0.0033 ft — about 0.04 in — but it is directional and real, and is
+recorded here rather than absorbed into an average. Every other seam's
+systematic component improved (N −65%, S −39%, E −33%), with N and E
+losing statistical significance entirely.
+
+**Buffering did not eliminate the discontinuity anywhere.** All four seams
+remain above the natural terrain step measured beside them, at 1.32–1.91×.
+That is the honest ceiling of what this technique achieves on this data:
+it removes the component caused by missing neighbourhood context, and
+leaves whatever else is there — flight-line calibration, interpolation
+behaviour at a hard edge, and genuine terrain — untouched. A seamless
+surface would require addressing those separately.
+
+Deliverables carry the `_buf150` tag; the unbuffered baseline is retained
+alongside them so the comparison stays checkable (Figure 9, Figure 10).
+
+## 7. Deliverables
 
 | File | Description |
 |---|---|
@@ -362,7 +452,7 @@ limitation, applied to a drainage area instead of a ground surface.
 | `output/hydrology/streams_final_t5000.gpkg` | Derived stream network, ag-area segments flagged (§5.2) |
 | `output/hydrology/watershed_main_wash.gpkg` | Main wash watershed, 258.4 ac lower bound (§5.3) |
 
-## 7. Limitations & Recommendations
+## 8. Limitations & Recommendations
 
 - **Vertical datum: confirmed, not presumed.** NAVD88 via Geoid12A,
   sourced from the project's own accuracy assessment (Psomas, Feb 2015)
@@ -374,7 +464,7 @@ limitation, applied to a drainage area instead of a ground surface.
   target; the assessment does not comment on this. VVA was not
   assessed by the vendor (project area classified entirely non-vegetated
   for accuracy-testing purposes). Full source citation, including why it's
-  treated as authoritative, in §9.
+  treated as authoritative, in §10.
 - **No external vertical control falls inside this specific tile** (§3.4)
   — the project's 134 check points are spread across the full ~2,203 sq
   mi collection area and none happen to land in this 574-acre tile. The
@@ -392,18 +482,20 @@ limitation, applied to a drainage area instead of a ground surface.
 - Point coverage, while meeting the QL2 average, is uneven at the cell level
   (§3.5); users needing guaranteed local density should consult the density
   raster before relying on any single-coverage area for precision work.
-- **Tile-boundary edge effects are not corrected for.** SMRF's ground
-  classification degrades near a tile's edge, within roughly one `window`
-  of the boundary, because points there lack full neighborhood context —
-  whatever's just outside the tile simply doesn't exist in that pipeline
-  run. The correct fix is buffering: pull in a margin of points from
-  adjacent tiles, classify with the margin included, then crop back to the
-  true tile boundary before writing output. This is not implemented in the
-  current batch pipeline — this project currently has zero pairs of
-  spatially-adjacent tiles (San Xavier and Tucson Mountains don't touch),
-  so there is nothing to buffer from and no way to test the logic against
-  real data. This should be revisited before processing any contiguous
-  multi-tile project area.
+- **Tile-boundary discontinuity is reduced by buffering but not
+  eliminated** (§6). With a 150 ft buffer, all four measured seams remain
+  at 1.32–1.91× the natural terrain step measured beside them. Buffering
+  removes the component caused by missing cross-tile neighbourhood
+  context; it does not touch flight-line calibration error, interpolation
+  behaviour at a hard edge, or genuine terrain. Any downstream use
+  requiring a truly seamless surface must address those separately. The
+  buffer distance itself has not been optimised — 150 ft was chosen to
+  exceed SMRF's ~122 ft reach at these parameters, and whether a larger
+  buffer helps further is untested.
+- **The W seam's systematic offset grew slightly under buffering**
+  (−0.0623 → −0.0656 ft, §6.2), the one component of one seam that got
+  worse. It is small in absolute terms (0.0033 ft) and its random
+  component improved, but it is recorded rather than averaged away.
 - **The derived stream network cannot separate a real channel from the
   center-pivot field's wheel-track ring by geometry alone** (§5.2). This is
   disclosed on the deliverable figure itself (ag-area segments flagged
@@ -414,16 +506,16 @@ limitation, applied to a drainage area instead of a ground surface.
   edge-effects limitation above, applied to flow routing instead of ground
   classification.
 
-## 8. Batch processing (multi-tile)
+## 9. Batch processing (multi-tile)
 
 A second tile (Tucson Mountains, steeper vegetated terrain) was also run
 through this pipeline with its own tuned SMRF parameters; its results
 are documented separately, not in this single-tile memo.
 
-## 9. Sources (project documentation, external to this analysis)
+## 10. Sources (project documentation, external to this analysis)
 
 The vertical datum, sensor, acquisition dates, and project NVA cited
-throughout this memo (§3.4, §7) are not derived from this project's own
+throughout this memo (§3.4, §8) are not derived from this project's own
 processing — they come from the original 2015 collection's project
 documentation, located on USGS's public distribution server in a path
 separate from the LAZ tile downloads themselves
