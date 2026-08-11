@@ -17,7 +17,9 @@ import shapely
 from shapely.geometry import LineString, box
 from shapely.ops import split
 
-HYDRO = r"C:\Users\ryans\lidar-portfolio\output\hydrology"
+# Project root, resolved from this file's own location so these scripts
+# run from any checkout rather than one hardcoded directory.
+HYDRO = str(Path(__file__).resolve().parent.parent / "output" / "hydrology")
 
 accum_ds = rasterio.open(f"{HYDRO}/d8_flow_accum_cells.tif")
 accum = accum_ds.read(1)
@@ -69,6 +71,7 @@ print(f"Split into {len(pieces)} pieces")
 
 # label: the piece containing the residential block (980339, 400067) is "west_natural"
 from shapely.geometry import Point
+from pathlib import Path
 residential_pt = Point(980339, 400067)
 west_piece = None
 east_piece = None

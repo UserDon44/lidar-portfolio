@@ -17,7 +17,9 @@ import rasterio
 import laspy
 from pathlib import Path
 
-ROOT = Path(r"C:\Users\ryans\lidar-portfolio")
+# Project root, resolved from this file's own location so these scripts
+# run from any checkout rather than one hardcoded directory.
+ROOT = Path(__file__).resolve().parent.parent
 DEM = ROOT / "output" / "dem" / "dem_w120_s0.15_t1.6.tif"
 CHM = ROOT / "output" / "dem" / "chm.tif"
 LAZ = ROOT / "data" / "raw" / "USGS_LPC_Eastern_Pima_County_Lidar_980398.laz"

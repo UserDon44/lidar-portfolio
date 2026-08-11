@@ -29,7 +29,9 @@ from pathlib import Path
 import numpy as np
 import rasterio
 
-ROOT = Path(r"C:\Users\ryans\lidar-portfolio")
+# Project root, resolved from this file's own location so these scripts
+# run from any checkout rather than one hardcoded directory.
+ROOT = Path(__file__).resolve().parent.parent
 FIG_DIR = ROOT / "output" / "figures"
 
 DEFAULT_DEM = ROOT / "output" / "dem" / "dem_tucson_lastreturn_w33_s0.6_t1.3.tif"

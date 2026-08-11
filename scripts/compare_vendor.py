@@ -28,7 +28,9 @@ import subprocess
 import sys
 from pathlib import Path
 
-ROOT = Path(r"C:\Users\ryans\lidar-portfolio")
+# Project root, resolved from this file's own location so these scripts
+# run from any checkout rather than one hardcoded directory.
+ROOT = Path(__file__).resolve().parent.parent
 TILE = ROOT / "data" / "raw" / "USGS_LPC_Eastern_Pima_County_Lidar_980398.laz"
 DEM_DIR = ROOT / "output" / "dem"
 HS_DIR = ROOT / "output" / "hillshade"

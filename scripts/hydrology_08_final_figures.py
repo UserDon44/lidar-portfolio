@@ -15,7 +15,9 @@ import matplotlib.pyplot as plt
 from matplotlib.patches import Patch
 from matplotlib.lines import Line2D
 
-ROOT = r"C:\Users\ryans\lidar-portfolio"
+# Project root, resolved from this file's own location so these scripts
+# run from any checkout rather than one hardcoded directory.
+ROOT = str(Path(__file__).resolve().parent.parent)
 HYDRO = f"{ROOT}/output/hydrology"
 
 hs_ds = rasterio.open(f"{ROOT}/output/hillshade/hs_w120_s0.15_t1.6.tif")
@@ -38,6 +40,7 @@ ys = np.array(ys).reshape(fill.shape)
 region_gdf = gpd.read_file(f"{HYDRO}/region_split_west_east.gpkg")
 west_piece = region_gdf[region_gdf.region == "natural_west"].geometry.iloc[0]
 import shapely
+from pathlib import Path
 west_mask = shapely.contains_xy(west_piece, xs, ys)
 edge_dist = 150
 near_edge = ((xs - minx) < edge_dist) | ((maxx - xs) < edge_dist) | \

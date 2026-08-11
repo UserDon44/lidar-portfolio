@@ -7,7 +7,9 @@ stage 3) off the SAME corrected DEM.
 import whitebox
 from pathlib import Path
 
-ROOT = Path(r"C:\Users\ryans\lidar-portfolio")
+# Project root, resolved from this file's own location so these scripts
+# run from any checkout rather than one hardcoded directory.
+ROOT = Path(__file__).resolve().parent.parent
 HYDRO = ROOT / "output" / "hydrology"
 filled = HYDRO / "dem_02_filled.tif"
 

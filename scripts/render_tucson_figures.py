@@ -34,6 +34,10 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
+# Project root, resolved from this file's own location so these scripts
+# run from any checkout rather than one hardcoded directory.
+ROOT = Path(__file__).resolve().parent.parent
+
 # standard crop for every iteration-comparison figure: a lit slope with
 # real gully structure AND dense speckle texture, so a reader can judge
 # both "did real relief detail survive" and "did the speckle change"
@@ -139,7 +143,7 @@ def fig_negative_results():
 def fig_input_filtering():
     import laspy
 
-    las = laspy.open(Path(r"C:\Users\ryans\lidar-portfolio\data\raw\tucson_mtns_484572_epsg6405.laz")).read()
+    las = laspy.open(ROOT / "data" / "raw" / "tucson_mtns_484572_epsg6405.laz").read()
     rn = np.array(las.return_number)
     nr = np.array(las.number_of_returns)
     total = len(rn)

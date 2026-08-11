@@ -22,7 +22,9 @@ from reportlab.platypus import (
     PageBreak, HRFlowable, KeepTogether, CondPageBreak,
 )
 
-ROOT = Path(r"C:\Users\ryans\lidar-portfolio")
+# Project root, resolved from this file's own location so these scripts
+# run from any checkout rather than one hardcoded directory.
+ROOT = Path(__file__).resolve().parent.parent
 MEMO = ROOT / "output" / "reports" / "qc_memo.md"
 FIG_DIR = ROOT / "output" / "figures"
 OUT = ROOT / "output" / "reports" / "qc_report.pdf"

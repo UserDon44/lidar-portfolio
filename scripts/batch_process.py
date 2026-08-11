@@ -13,9 +13,11 @@ Usage:
     python batch_process.py --force     # reprocess tiles even if a DEM
                                          # for them already exists
 
-Units are FEET (EPSG:6405, Arizona Central ft). Tiles whose header CRS
-isn't EPSG:6405 are skipped with a warning naming the CRS found -- not
-auto-reprojected. Reprojecting silently inside an unattended batch loop is
+Tiles whose header CRS doesn't match the expected EPSG code are skipped
+with a warning naming the CRS found -- not auto-reprojected. The expected
+code defaults to 6405 (Arizona Central, International Feet) and is set
+with --epsg, since it is a per-project fact: another state plane zone
+would otherwise have every valid tile rejected. Reprojecting silently inside an unattended batch loop is
 exactly the kind of step this project already found a subtle bug in this
 session (Z staying in meters after a "successful" horizontal reprojection);
 it needs a human sanity check, not a hidden automatic step.
@@ -59,7 +61,11 @@ CSV_PATH = REPORTS_DIR / "batch_qc.csv"
 README_PATH = REPORTS_DIR / "batch_qc_README.md"
 CATALOG_VRT = DEM_DIR / "catalog.vrt"
 
-EXPECTED_EPSG = "6405"
+# Default expected horizontal CRS. Overridable with --epsg: this is a
+# per-project fact, not a property of the pipeline. A different state
+# plane zone (e.g. a South Florida project) would otherwise have every
+# valid tile rejected as "wrong CRS".
+DEFAULT_EPSG = "6405"
 INTL_FT_TO_M = 0.3048  # EPSG:6405 uses the international foot, not US survey foot
 
 CSV_FIELDS = [
@@ -82,8 +88,9 @@ Written by scripts/batch_process.py. One row per tile in data/raw/.
     Numeric QC fields are blank: they reflect whatever run originally
     produced that DEM, not necessarily this run, so this script doesn't
     guess at them. Check `dem_path`'s timestamp if you need to know when.
-  - `skipped_wrong_crs` -- header CRS isn't EPSG:6405; not processed.
-    `error_message` names the CRS actually found.
+  - `skipped_wrong_crs` -- header CRS doesn't match the run's expected
+    EPSG code (--epsg, default 6405); not processed. `error_message`
+    names both the expected code and the CRS actually found.
   - `error` -- an exception was raised somewhere in this tile's pipeline.
     `error_message` has the first line of it; full traceback goes to
     stdout/console at run time, not into the CSV.
@@ -196,18 +203,19 @@ def load_tile_params():
     return default, overrides
 
 
-def get_tile_srs_and_count(tile):
+def get_tile_srs_and_count(tile, expected_epsg=DEFAULT_EPSG):
     """Read just the header -- no point decompression needed for this."""
     result = run(["pdal", "info", "--metadata", str(tile)])
     meta = json.loads(result.stdout)["metadata"]
     wkt = meta.get("comp_spatialreference", "")
     m = re.search(r'"([^"]+)"', wkt)  # first quoted string = the CRS's human name
     srs_name = m.group(1) if m else "(CRS not found in header)"
-    is_6405 = f'"EPSG","{EXPECTED_EPSG}"' in wkt
-    return is_6405, srs_name, meta["count"]
+    ok = f'"EPSG","{expected_epsg}"' in wkt
+    return ok, srs_name, meta["count"]
 
 
-def process_tile(tile_path, params, force, index=None, buffer_ft=0.0):
+def process_tile(tile_path, params, force, index=None, buffer_ft=0.0,
+                 expected_epsg=DEFAULT_EPSG):
     row = {f: "" for f in CSV_FIELDS}
     row["tile"] = tile_path.name
     for k in ("window", "slope", "threshold", "scalar", "cell", "res", "last_return_only"):
@@ -243,10 +251,10 @@ def process_tile(tile_path, params, force, index=None, buffer_ft=0.0):
 
     t0 = time.time()
     try:
-        is_6405, srs_name, point_count = get_tile_srs_and_count(tile_path)
-        if not is_6405:
+        ok, srs_name, point_count = get_tile_srs_and_count(tile_path, expected_epsg)
+        if not ok:
             row["status"] = "skipped_wrong_crs"
-            row["error_message"] = f"expected EPSG:6405, found: {srs_name}"
+            row["error_message"] = f"expected EPSG:{expected_epsg}, found: {srs_name}"
             print(f"  [skip] {tile_path.name}: wrong CRS -- {srs_name}")
             return row
 
@@ -378,6 +386,10 @@ def main():
                           "~122 ft at window=120/cell=3.3 -- to cover the "
                           "degraded edge zone; 150 is a reasonable starting "
                           "point for this project's tiles.")
+    ap.add_argument("--epsg", default=DEFAULT_EPSG, metavar="CODE",
+                     help=f"expected horizontal EPSG code; tiles whose header "
+                          f"declares a different one are skipped rather than "
+                          f"reprojected (default {DEFAULT_EPSG}, Arizona Central ft)")
     ap.add_argument("--csv", type=Path, default=CSV_PATH,
                      help="QC CSV path; override to avoid overwriting a "
                           "previous run's per-tile stats")
@@ -416,7 +428,8 @@ def main():
                       f"are NOT validated for this tile -- inspect the hillshade "
                       f"before trusting the result.")
 
-            row = process_tile(tile, params, args.force, index, args.buffer_ft)
+            row = process_tile(tile, params, args.force, index, args.buffer_ft,
+                               args.epsg)
             rows.append(row)
             writer.writerow(row)
             f.flush()  # every tile's result is on disk before moving to the next

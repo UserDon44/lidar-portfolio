@@ -22,7 +22,9 @@ import matplotlib.pyplot as plt
 from matplotlib.patches import FancyArrow, Rectangle
 from pathlib import Path
 
-ROOT = Path(r"C:\Users\ryans\lidar-portfolio")
+# Project root, resolved from this file's own location so these scripts
+# run from any checkout rather than one hardcoded directory.
+ROOT = Path(__file__).resolve().parent.parent
 DEM_DIR = ROOT / "output" / "dem"
 HS_DIR = ROOT / "output" / "hillshade"
 HYDRO_DIR = ROOT / "output" / "hydrology"

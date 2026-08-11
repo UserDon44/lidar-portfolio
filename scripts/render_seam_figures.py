@@ -29,7 +29,9 @@ from matplotlib.patches import Patch
 from render_figures import add_scalebar, add_north_arrow, DPI, FIG_DIR
 import measure_seams as ms
 
-ROOT = Path(r"C:\Users\ryans\lidar-portfolio")
+# Project root, resolved from this file's own location so these scripts
+# run from any checkout rather than one hardcoded directory.
+ROOT = Path(__file__).resolve().parent.parent
 UNBUF_TAG = "w120_s0.15_t1.6"
 BUF_TAG = "w120_s0.15_t1.6_buf150"
 BUFFER_FT = 150

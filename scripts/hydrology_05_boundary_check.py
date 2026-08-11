@@ -8,8 +8,11 @@ from within this tile is necessarily a lower bound on the true catchment).
 import rasterio
 import numpy as np
 from scipy import ndimage
+from pathlib import Path
 
-HYDRO = r"C:\Users\ryans\lidar-portfolio\output\hydrology"
+# Project root, resolved from this file's own location so these scripts
+# run from any checkout rather than one hardcoded directory.
+HYDRO = str(Path(__file__).resolve().parent.parent / "output" / "hydrology")
 THRESHOLD = 5000  # cells, matches the chosen stream threshold
 
 ds = rasterio.open(f"{HYDRO}/d8_flow_accum_cells.tif")

@@ -12,7 +12,9 @@ import rasterio
 import numpy as np
 from pathlib import Path
 
-ROOT = Path(r"C:\Users\ryans\lidar-portfolio")
+# Project root, resolved from this file's own location so these scripts
+# run from any checkout rather than one hardcoded directory.
+ROOT = Path(__file__).resolve().parent.parent
 DEM = ROOT / "output" / "dem" / "dem_w120_s0.15_t1.6.tif"
 HYDRO = ROOT / "output" / "hydrology"
 HYDRO.mkdir(parents=True, exist_ok=True)
