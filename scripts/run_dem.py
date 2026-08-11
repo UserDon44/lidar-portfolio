@@ -25,11 +25,26 @@ DEM_DIR = ROOT / "output" / "dem"
 HS_DIR = ROOT / "output" / "hillshade"
 PIPE_DIR = ROOT / "scripts" / "pipelines"
 
+# ELM (extended local minimum) removes low outliers before classification.
+# BOTH of these are in CRS LINEAR UNITS and there is nothing in the pipeline
+# that knows which unit that is. These defaults are FEET, derived for this
+# project's EPSG:6405 (Arizona Central, ft). Running them unchanged against a
+# metre-based CRS asks for a 33 m cell and a 3.3 m threshold -- silently
+# wrong rather than an error, and the kind of failure that only shows up as a
+# bad surface much later. Set --elm-cell / --elm-threshold explicitly for any
+# project whose CRS is not in feet.
+# (filters.outlier's mean_k/multiplier and writers.gdal's window_size are
+# counts and cell-multiples respectively, so they are unit-free and stay
+# hardcoded.)
+DEFAULT_ELM_CELL = 33.0        # ft
+DEFAULT_ELM_THRESHOLD = 3.3    # ft
+
 
 def build_pipeline(tile, out_tif, window, slope, threshold, scalar, cell, res,
                     last_return_only=False, stats_dimensions=None,
                     neighbour_tiles=None, read_bounds=None, crop_bounds=None,
-                    raster_grid=None):
+                    raster_grid=None,
+                    elm_cell=DEFAULT_ELM_CELL, elm_threshold=DEFAULT_ELM_THRESHOLD):
     """Return the PDAL pipeline as a dict.
 
     last_return_only: if True, insert a filters.returns stage (groups=
@@ -71,7 +86,7 @@ def build_pipeline(tile, out_tif, window, slope, threshold, scalar, cell, res,
         return _buffered_pipeline(tile, out_tif, window, slope, threshold, scalar,
                                   cell, res, last_return_only, stats_dimensions,
                                   neighbour_tiles, read_bounds, crop_bounds,
-                                  raster_grid)
+                                  raster_grid, elm_cell, elm_threshold)
 
     readers = [{"type": "readers.las", "filename": str(tile).replace("\\", "/")}]
     stages = list(readers)
@@ -82,7 +97,7 @@ def build_pipeline(tile, out_tif, window, slope, threshold, scalar, cell, res,
         # are near-certain vegetation canopy hits, not ground candidates
         stages.append({"type": "filters.returns", "groups": "last,only"})
     # low-outlier removal (craters)
-    stages.append({"type": "filters.elm", "cell": 33.0, "threshold": 3.3})
+    stages.append({"type": "filters.elm", "cell": elm_cell, "threshold": elm_threshold})
     # statistical outlier removal -> marks class 7
     stages.append({"type": "filters.outlier", "method": "statistical",
                     "mean_k": 8, "multiplier": 3.0})
@@ -103,7 +118,8 @@ def build_pipeline(tile, out_tif, window, slope, threshold, scalar, cell, res,
 
 def _buffered_pipeline(tile, out_tif, window, slope, threshold, scalar, cell, res,
                         last_return_only, stats_dimensions,
-                        neighbour_tiles, read_bounds, crop_bounds, raster_grid):
+                        neighbour_tiles, read_bounds, crop_bounds, raster_grid,
+                        elm_cell=DEFAULT_ELM_CELL, elm_threshold=DEFAULT_ELM_THRESHOLD):
     """Buffered pipeline, branched so the raster and the QC stats see
     different point sets.
 
@@ -139,7 +155,7 @@ def _buffered_pipeline(tile, out_tif, window, slope, threshold, scalar, cell, re
     stages.append({"type": "filters.assign", "assignment": "Classification[:]=0"})
     if last_return_only:
         stages.append({"type": "filters.returns", "groups": "last,only"})
-    stages.append({"type": "filters.elm", "cell": 33.0, "threshold": 3.3})
+    stages.append({"type": "filters.elm", "cell": elm_cell, "threshold": elm_threshold})
     stages.append({"type": "filters.outlier", "method": "statistical",
                    "mean_k": 8, "multiplier": 3.0})
     stages.append({"type": "filters.smrf", "cell": cell, "window": window,
@@ -194,6 +210,12 @@ def main():
                    help="SMRF cell size, FEET (default 3.3)")
     p.add_argument("--res", type=float, default=3.0,
                    help="output DEM resolution, FEET (default 3.0)")
+    p.add_argument("--elm-cell", type=float, default=DEFAULT_ELM_CELL,
+                   help=f"ELM cell size, CRS LINEAR UNITS (default {DEFAULT_ELM_CELL} "
+                        f"= feet, for EPSG:6405). Must be set for a metre CRS.")
+    p.add_argument("--elm-threshold", type=float, default=DEFAULT_ELM_THRESHOLD,
+                   help=f"ELM elevation threshold, CRS LINEAR UNITS (default "
+                        f"{DEFAULT_ELM_THRESHOLD} = feet). Must be set for a metre CRS.")
     p.add_argument("--last-return-only", action="store_true",
                    help="drop first/intermediate returns before classifying "
                         "(use on tiles with real canopy penetration)")
@@ -216,7 +238,9 @@ def main():
     # write pipeline (keeps a record of exactly what was run)
     pipeline = build_pipeline(args.tile, dem_tif, args.window, args.slope,
                               args.threshold, args.scalar, args.cell, args.res,
-                              last_return_only=args.last_return_only)
+                              last_return_only=args.last_return_only,
+                              elm_cell=args.elm_cell,
+                              elm_threshold=args.elm_threshold)
     pipe_json.write_text(json.dumps(pipeline, indent=2))
 
     try:

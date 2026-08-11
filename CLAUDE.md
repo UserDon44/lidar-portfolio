@@ -982,6 +982,23 @@ than being abstracted on speculation.
 - **Expected EPSG is now `--epsg`** (default 6405) rather than a module
   constant. It is a per-project fact: another state plane zone would
   have had every valid tile skipped as "wrong CRS".
+- **ELM's `cell` and `threshold` are now parameters** (`--elm-cell`,
+  `--elm-threshold`, and per-tile keys in `tile_params.json`), not
+  literals buried in `build_pipeline()`. **Found while starting project
+  two**: they were hardcoded as `33.0` / `3.3` — *feet*, derived for
+  EPSG:6405 — inside a function the portability inventory had called
+  "generic". Against project two's metre-based CRS (EPSG:6350, Conus
+  Albers) those silently become a 33 m cell and a 3.3 m threshold. No
+  error, just a quietly wrong surface discovered much later. Exposed as
+  a parameter rather than special-cased for the new project, so the fix
+  holds for project three as well. Defaults are unchanged, and verified
+  to reproduce the committed pipeline JSON exactly and the San Xavier
+  DEM byte-for-byte.
+  Audited the rest of `build_pipeline()` for the same class of bug at
+  the same time: `filters.outlier`'s `mean_k`/`multiplier` are a
+  neighbour count and a standard-deviation multiple, and
+  `writers.gdal`'s `window_size` is in cells — all unit-free, so ELM was
+  the only unit-bearing literal.
 
 Verified byte-identical output after the change (the unbuffered centre
 tile's DEM md5 is unchanged), plus imports, `--help`, and execution from
@@ -991,7 +1008,7 @@ an unrelated working directory.
 
 | Tier | Scripts | Note |
 |---|---|---|
-| Generic, runs unchanged | `run_dem.py`, `batch_process.py`, `render_3d.py` | CLI-driven; tile identity is only a default |
+| Generic, runs unchanged | `run_dem.py`, `batch_process.py`, `render_3d.py` | CLI-driven; tile identity is only a default. **Caveat found later:** `run_dem.py` was only generic once ELM's feet-valued literals became parameters — see above. "Generic" needs checking against a genuinely different CRS, not asserted from structure. |
 | Needs parameterization | `measure_seams.py`, `compare_vendor.py`, `measure_features.py`, `render_figures.py`, `render_seam_figures.py`, `build_report.py`, `build_onepager.py` | General *method*, San Xavier *constants* |
 | Single-use | the eight `hydrology_0*.py`, `render_tucson_figures.py` | Chained by filename, tile-specific decisions at nearly every step; read as a template, don't run |
 

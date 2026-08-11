@@ -52,7 +52,8 @@ from pathlib import Path
 import rasterio
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from run_dem import build_pipeline, run, ROOT, DEM_DIR, HS_DIR, PIPE_DIR  # noqa: E402
+from run_dem import (build_pipeline, run, ROOT, DEM_DIR, HS_DIR, PIPE_DIR,  # noqa: E402
+                     DEFAULT_ELM_CELL, DEFAULT_ELM_THRESHOLD)
 
 RAW_DIR = ROOT / "data" / "raw"
 PARAMS_FILE = ROOT / "scripts" / "tile_params.json"
@@ -70,7 +71,8 @@ INTL_FT_TO_M = 0.3048  # EPSG:6405 uses the international foot, not US survey fo
 
 CSV_FIELDS = [
     "tile", "status", "window", "slope", "threshold", "scalar", "cell", "res",
-    "last_return_only", "buffer_ft", "n_buffer_neighbours", "clip_srcwin",
+    "last_return_only", "elm_cell", "elm_threshold",
+    "buffer_ft", "n_buffer_neighbours", "clip_srcwin",
     "point_count", "ground_point_count", "ground_pct",
     "z_min_ft", "z_max_ft", "point_density_per_m2", "void_cell_count",
     "void_cell_pct", "runtime_sec", "dem_path", "error_message",
@@ -220,6 +222,11 @@ def process_tile(tile_path, params, force, index=None, buffer_ft=0.0,
     row["tile"] = tile_path.name
     for k in ("window", "slope", "threshold", "scalar", "cell", "res", "last_return_only"):
         row[k] = params[k]
+    # ELM is in CRS linear units; per-tile so a metre-CRS project can set it
+    # without every other tile inheriting feet values
+    elm_cell = params.get("elm_cell", DEFAULT_ELM_CELL)
+    elm_threshold = params.get("elm_threshold", DEFAULT_ELM_THRESHOLD)
+    row["elm_cell"], row["elm_threshold"] = elm_cell, elm_threshold
     row["buffer_ft"] = buffer_ft
 
     # Resolve neighbours BEFORE naming the output. A tile with no neighbours
@@ -307,6 +314,7 @@ def process_tile(tile_path, params, force, index=None, buffer_ft=0.0,
             stats_dimensions="Z",
             neighbour_tiles=neighbours, read_bounds=read_b, crop_bounds=crop_b,
             raster_grid=grid,
+            elm_cell=elm_cell, elm_threshold=elm_threshold,
         )
         pipe_json.write_text(json.dumps(pipeline, indent=2))
 
