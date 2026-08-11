@@ -104,7 +104,9 @@ lidar-portfolio/
   data/control/        NGS control points — empty; investigated via API
                         instead (item #5), concluded no usable in-tile
                         control exists. Left empty deliberately, not todo.
-  scripts/             run_dem.py, compare_vendor.py, batch_process.py,
+  scripts/             all resolve ROOT from their own location, so the
+                        repo can live anywhere (see "Script portability").
+                        run_dem.py, compare_vendor.py, batch_process.py,
                         tile_params.json, hydrology_0[1-8]_*.py,
                         render_figures.py, render_tucson_figures.py,
                         build_report.py, build_onepager.py,
@@ -962,6 +964,49 @@ Artifacts: `output/seams/mosaic_unbuffered.vrt`,
 **Next** (now done, see the RESOLVED block at the top of this section):
 implement `--buffer-ft`, reprocess, re-measure, report the before/after.
 
+## Script portability — the map, before project two (2026-08-10)
+
+Inventoried `scripts/` for what would survive a move to a new project.
+**Nothing was refactored except the two things below** — shared code stays
+duplicated until a second project shows what actually repeats, rather
+than being abstracted on speculation.
+
+**Fixed:**
+- **Project root now resolves from the script's own location**
+  (`Path(__file__).resolve().parent.parent`). Previously all 19
+  occurrences across 19 files hardcoded `C:\Users\ryans\lidar-portfolio`,
+  *including* the otherwise-portable ones, so nothing ran from another
+  checkout without editing. Three hydrology scripts also built `HYDRO`
+  from a raw absolute string with no `ROOT` at all; one held `ROOT` as a
+  `str` for f-string use. Both forms were preserved, just derived.
+- **Expected EPSG is now `--epsg`** (default 6405) rather than a module
+  constant. It is a per-project fact: another state plane zone would
+  have had every valid tile skipped as "wrong CRS".
+
+Verified byte-identical output after the change (the unbuffered centre
+tile's DEM md5 is unchanged), plus imports, `--help`, and execution from
+an unrelated working directory.
+
+**Tiers, for when project two starts:**
+
+| Tier | Scripts | Note |
+|---|---|---|
+| Generic, runs unchanged | `run_dem.py`, `batch_process.py`, `render_3d.py` | CLI-driven; tile identity is only a default |
+| Needs parameterization | `measure_seams.py`, `compare_vendor.py`, `measure_features.py`, `render_figures.py`, `render_seam_figures.py`, `build_report.py`, `build_onepager.py` | General *method*, San Xavier *constants* |
+| Single-use | the eight `hydrology_0*.py`, `render_tucson_figures.py` | Chained by filename, tile-specific decisions at nearly every step; read as a template, don't run |
+
+The hydrology chain is the clearest case: `DEM` fixed to one filename,
+stream threshold 5,000 cells derived for this terrain, pour point
+(982406.26, 403427.31), trunk mask `accum > 50000`, a residential seed
+point for the west/east split. Each stage also assumes the previous
+stage's output filename with no interface between them.
+
+Highest-value shared pieces if extraction ever happens: `run_dem.py`'s
+`build_pipeline()`, `render_figures.py`'s `add_scalebar()` /
+`add_north_arrow()` (already imported by three other scripts),
+`compare_vendor.py`'s `align()` grid fix, and `measure_seams.py`'s
+per-side-baseline method.
+
 ## Known Limitations
 
 **Tile-boundary edge effects (SMRF, not buffered).** SMRF's ground
@@ -1170,7 +1215,12 @@ reusable result), `f7034a0` (§4/§3.6 measurements made reproducible; two
 contradicted numbers fixed), `fce465b` (`batch_qc_README` z-range
 definition corrected), `3f7316c` (session-closeout rule), `7f1a8bb`
 (PyVista 3D renderer + the four adjacent tiles, `measure_seams.py`, and
-the item-#12 baseline). This `CLAUDE.md` update, plus
+the item-#12 baseline), `7bd422c` (item #12 baseline recorded),
+`3c7c8e8` (`--buffer-ft` implemented and written up), `3be9e6c`
+(high-VE artifact rule), `f8e6a22` (10x render marked ARTIFACT_EXAMPLE),
+`d134e35` (**seam finding retracted and corrected** — crop-order defect),
+`b76747a` (root paths resolved from script location, `--epsg`
+configurable). This `CLAUDE.md` update, plus
 `docs/session-log.md`, are being committed together right after this
 update (see the session log for the date).
 

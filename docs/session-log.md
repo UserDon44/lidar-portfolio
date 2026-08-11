@@ -503,3 +503,41 @@ than as better-than-terrain accuracy, figure regenerated from corrected
 measurements with its orientation grouping dropped, PDF rebuilt to 23
 pages, and the refuted version replaced on GitHub rather than left
 public.
+
+**Script inventory and the one refactor before project two**
+Mapped `scripts/` into three tiers before starting a second project:
+genuinely generic (`run_dem.py`, `batch_process.py`, `render_3d.py` --
+CLI-driven, tile identity only a default), needs parameterization
+(`measure_seams.py`, `compare_vendor.py`, `measure_features.py`, the
+figure and report builders -- general method, San Xavier constants), and
+single-use (the eight hydrology scripts and the Tucson figure renderer --
+chained by filename with tile-specific decisions at nearly every step,
+worth reading as a template rather than running).
+
+Two things cut across every tier and were the only refactor done.
+Every script hardcoded the project root, *including* the otherwise
+portable ones, so nothing ran from another checkout without editing --
+19 occurrences across 19 files, now derived from
+`Path(__file__).resolve().parent.parent`. And `EXPECTED_EPSG` was a
+module constant asserting 6405, which would have rejected every valid
+tile in a different state plane zone; it is now `--epsg` with 6405 as
+the default, threaded through the CRS check and `process_tile`.
+
+Three files needed more than a swap: three hydrology scripts built
+`HYDRO` from a raw absolute string with no `ROOT` and no `pathlib`
+import, and one held `ROOT` as a `str` for f-string interpolation. Both
+forms were preserved and merely derived, so no call sites changed.
+
+Verified the way this project has learned to verify. The DEM checksum
+was recorded *before* touching anything; after the refactor the
+unbuffered centre tile reran byte-identical
+(58b42211856bf83b39b9865331d55fe0 both sides). The first patch attempt
+failed outright -- a heredoc consumed the backslashes as escapes -- and
+was confirmed to have changed nothing by re-grepping before retrying.
+Then imports, `--help` on every CLI script, and execution by absolute
+path from an unrelated working directory, where `measure_features.py`
+reproduced its documented figures exactly.
+
+Deliberately stopped there. Shared helpers stay duplicated until a
+second project shows what actually repeats; the candidates are noted in
+CLAUDE.md rather than extracted on speculation.
