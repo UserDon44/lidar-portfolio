@@ -380,59 +380,59 @@ parallel to it the figure is 1.60×. Re-derive with
 `python scripts/measure_seams.py --tag <variant>`.
 
 Buffering itself (`scripts/batch_process.py --buffer-ft 150`) reads a
-margin 150 ft into every adjacent tile, classifies with the margin
-included, then crops back to the true tile boundary before rasterizing —
-so the buffer informs the ground/non-ground decision but never reaches
-the output, and adjacent DEMs still abut exactly rather than overlapping.
-150 ft was chosen to exceed SMRF's own reach, `ceil(window/cell)` = 37
-cells ≈ 122 ft at this tile's parameters.
+margin 150 ft into every adjacent tile and classifies with the margin
+included. 150 ft was chosen to exceed SMRF's own reach,
+`ceil(window/cell)` = 37 cells ≈ 122 ft at this tile's parameters.
+
+**The buffer is removed as a raster operation, not a point crop, and the
+distinction matters.** The DEM is rasterized over a grid deliberately
+extended by the buffer, then clipped back to the tile with
+`gdal_translate -srcwin`. Cropping the *points* to the tile before
+rasterizing — the obvious implementation — fixes the classification edge
+effect but leaves an interpolation one: IDW's fallback search reaches
+`window_size` × resolution = 18 ft, so cells within 18 ft of the boundary
+would still be interpolated from a one-sided neighbourhood, and that is
+precisely the zone where seam discontinuity is measured (samples sit
+1.5 ft either side). Clipping the raster instead means every output cell,
+edge cells included, is interpolated from a complete neighbourhood. The
+buffer distance is required to be a whole number of cells so the clip is
+an integer window; the clipped raster is bit-identical in grid, bounds
+and CRS to the unbuffered one, so before/after differences cannot be a
+gridding artifact.
 
 ### 6.2 Result
 
 | Seam | Unbuffered RMS | Buffered RMS | Change | Local natural step | Ratio before → after |
 |---|---|---|---|---|---|
-| N | 0.608 ft | 0.412 ft | **−32.3%** | 0.225 ft | 2.71× → 1.83× |
-| S | 0.642 ft | 0.380 ft | **−40.8%** | 0.199 ft | 3.23× → 1.91× |
-| E | 0.219 ft | 0.211 ft | −3.6% | 0.137 ft | 1.61× → 1.55× |
-| W | 0.411 ft | 0.385 ft | −6.3% | 0.293 ft | 1.40× → 1.32× |
+| N | 0.608 ft | 0.237 ft | **−61.0%** | 0.225 ft | 2.71× → 1.06× |
+| S | 0.642 ft | 0.289 ft | **−55.0%** | 0.199 ft | 3.23× → 1.45× |
+| E | 0.219 ft | 0.119 ft | **−45.7%** | 0.137 ft | 1.61× → 0.87× |
+| W | 0.411 ft | 0.213 ft | **−48.1%** | 0.293 ft | 1.40× → 0.73× |
 
-**The headline is not the improvement percentages — it is that buffering
-removes the edge-effect component and nothing else.** The evidence is the
-split by seam orientation. This collection's flight lines run north–south.
-The N and S seams cut *across* them and improve by 32–41%; the E and W
-seams run *parallel* to them and improve by 4–6%.
+Buffering reduces seam discontinuity by **46–61%**, and the improvement
+is broadly uniform across all four seams rather than depending on seam
+orientation relative to the flight lines. Systematic offsets fall on
+every seam as well: N −98%, S −77%, E −68%, W −45%, leaving residuals of
+−0.001 to +0.024 ft on three seams and −0.034 ft on the fourth.
 
-That split was **predicted before the buffered results were computed**,
-from the unbuffered baseline alone: the N/S seams were already ~2× worse
-than E/W, and flight-line orientation was recorded at the time as the
-plausible mechanism. The buffered run tested that prediction rather than
-being used to generate it — which is a stronger form of evidence than the
-same pattern noticed after the fact. Buffering cannot correct flight-line
-calibration error, so on seams whose residual disagreement is dominated by
-it, buffering should do almost nothing. It does almost nothing. The
-residual systematic offsets on S (+0.063 ft) and W (−0.066 ft) are the
-same order as the +0.124 ft inter-swath offset independently measured in
-§3.3.
+**Three of the four seams fall to at or below the natural terrain step
+measured beside them** (N 1.06×, E 0.87×, W 0.73×). A ratio below 1.0
+should not be read as accuracy exceeding real terrain. It is the expected
+signature of the two sides no longer being independent: with a buffer,
+the cells either side of a boundary are interpolated from overlapping
+point neighbourhoods, so they are correlated in a way that two
+independent samples 3 ft apart in open terrain are not. The comparison
+baseline is deliberately built from independent terrain samples, so once
+the seam stops being a discontinuity at all, the ratio falling under 1.0
+is what the metric does — not evidence of a better-than-reality surface.
 
-**One seam degraded, in one component.** The W seam's systematic offset
-grew from −0.0623 ft to −0.0656 ft, +5.3% in magnitude, and its
-t-statistic strengthened from −6.3 to −7.1. That t is driven by two
-separate changes and they should not be conflated: the bias itself grew
-slightly, *and* the noise around it fell (sd −6.6%), which makes the same
-bias easier to detect. So W's random component improved while its
-systematic component regressed. In absolute terms the regression is
-0.0033 ft — about 0.04 in — but it is directional and real, and is
-recorded here rather than absorbed into an average. Every other seam's
-systematic component improved (N −65%, S −39%, E −33%), with N and E
-losing statistical significance entirely.
-
-**Buffering did not eliminate the discontinuity anywhere.** All four seams
-remain above the natural terrain step measured beside them, at 1.32–1.91×.
-That is the honest ceiling of what this technique achieves on this data:
-it removes the component caused by missing neighbourhood context, and
-leaves whatever else is there — flight-line calibration, interpolation
-behaviour at a hard edge, and genuine terrain — untouched. A seamless
-surface would require addressing those separately.
+**The S seam is the exception**, remaining at 1.45× with a small but
+statistically significant systematic offset (+0.024 ft, t = +3.4). It is
+the only seam where a residual discontinuity survives buffering, and this
+memo does not claim a cause for it. Candidates include flight-line
+calibration (§3.3 measured a +0.124 ft inter-swath offset in this
+collection, an order consistent with the residual) and genuine terrain at
+that boundary, but nothing here distinguishes them.
 
 Deliverables carry the `_buf150` tag; the unbuffered baseline is retained
 alongside them so the comparison stays checkable (Figure 9, Figure 10).
@@ -482,20 +482,21 @@ alongside them so the comparison stays checkable (Figure 9, Figure 10).
 - Point coverage, while meeting the QL2 average, is uneven at the cell level
   (§3.5); users needing guaranteed local density should consult the density
   raster before relying on any single-coverage area for precision work.
-- **Tile-boundary discontinuity is reduced by buffering but not
-  eliminated** (§6). With a 150 ft buffer, all four measured seams remain
-  at 1.32–1.91× the natural terrain step measured beside them. Buffering
-  removes the component caused by missing cross-tile neighbourhood
-  context; it does not touch flight-line calibration error, interpolation
-  behaviour at a hard edge, or genuine terrain. Any downstream use
-  requiring a truly seamless surface must address those separately. The
-  buffer distance itself has not been optimised — 150 ft was chosen to
-  exceed SMRF's ~122 ft reach at these parameters, and whether a larger
-  buffer helps further is untested.
-- **The W seam's systematic offset grew slightly under buffering**
-  (−0.0623 → −0.0656 ft, §6.2), the one component of one seam that got
-  worse. It is small in absolute terms (0.0033 ft) and its random
-  component improved, but it is recorded rather than averaged away.
+- **One seam retains a residual discontinuity after buffering** (§6.2).
+  Three of four fall to at or below the natural terrain step beside them,
+  but the S seam remains at 1.45× with a small significant systematic
+  offset (+0.024 ft). No cause is claimed; flight-line calibration (§3.3)
+  and genuine terrain are both consistent with it and this work does not
+  distinguish them.
+- **The buffer distance has not been optimised.** 150 ft was chosen to
+  exceed SMRF's ~122 ft reach at these parameters. Whether a larger
+  buffer further reduces the S residual is untested.
+- **Buffered results depend on the buffer being removed as a raster
+  clip rather than a point crop** (§6.1). Cropping points before
+  rasterizing leaves IDW interpolating edge cells from a one-sided
+  neighbourhood, within 18 ft of the boundary — the zone the seam metric
+  samples. Any reimplementation must preserve that ordering or the
+  measured improvement will be substantially understated.
 - **The derived stream network cannot separate a real channel from the
   center-pivot field's wheel-track ring by geometry alone** (§5.2). This is
   disclosed on the deliverable figure itself (ag-area segments flagged

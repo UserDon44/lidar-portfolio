@@ -26,7 +26,8 @@ PIPE_DIR = ROOT / "scripts" / "pipelines"
 
 def build_pipeline(tile, out_tif, window, slope, threshold, scalar, cell, res,
                     last_return_only=False, stats_dimensions=None,
-                    neighbour_tiles=None, read_bounds=None, crop_bounds=None):
+                    neighbour_tiles=None, read_bounds=None, crop_bounds=None,
+                    raster_grid=None):
     """Return the PDAL pipeline as a dict.
 
     last_return_only: if True, insert a filters.returns stage (groups=
@@ -64,15 +65,14 @@ def build_pipeline(tile, out_tif, window, slope, threshold, scalar, cell, res,
     All three must be given together; passing none reproduces the original
     unbuffered pipeline byte-for-byte.
     """
+    if neighbour_tiles:
+        return _buffered_pipeline(tile, out_tif, window, slope, threshold, scalar,
+                                  cell, res, last_return_only, stats_dimensions,
+                                  neighbour_tiles, read_bounds, crop_bounds,
+                                  raster_grid)
+
     readers = [{"type": "readers.las", "filename": str(tile).replace("\\", "/")}]
-    for n in (neighbour_tiles or []):
-        readers.append({"type": "readers.las", "filename": str(n).replace("\\", "/")})
     stages = list(readers)
-    if len(readers) > 1:
-        stages.append({"type": "filters.merge"})
-    if read_bounds is not None:
-        # trim the neighbours down to just the margin before any real work
-        stages.append({"type": "filters.crop", "bounds": read_bounds})
     # wipe vendor classification - we classify from scratch
     stages.append({"type": "filters.assign", "assignment": "Classification[:]=0"})
     if last_return_only:
@@ -90,16 +90,71 @@ def build_pipeline(tile, out_tif, window, slope, threshold, scalar, cell, res,
                     "ignore": "Classification[7:7]"})
     # keep ground only
     stages.append({"type": "filters.range", "limits": "Classification[2:2]"})
-    if crop_bounds is not None:
-        # discard the buffer: it has done its job informing classification,
-        # and must not reach the raster or adjacent DEMs would overlap
-        stages.append({"type": "filters.crop", "bounds": crop_bounds})
     if stats_dimensions:
         stages.append({"type": "filters.stats", "dimensions": stats_dimensions})
     # rasterize
     stages.append({"type": "writers.gdal", "filename": str(out_tif).replace("\\", "/"),
                     "resolution": res, "output_type": "idw",
                     "window_size": 6, "nodata": -9999})
+    return {"pipeline": stages}
+
+
+def _buffered_pipeline(tile, out_tif, window, slope, threshold, scalar, cell, res,
+                        last_return_only, stats_dimensions,
+                        neighbour_tiles, read_bounds, crop_bounds, raster_grid):
+    """Buffered pipeline, branched so the raster and the QC stats see
+    different point sets.
+
+    The key ordering point, and the reason this exists: the raster is
+    written from the FULL buffered point set, over a grid deliberately
+    extended by the buffer, and is clipped back to the tile afterwards as
+    a raster operation. An earlier version cropped the POINTS to the tile
+    before writers.gdal, which fixed the classification edge effect but
+    left an interpolation one -- IDW's fallback search (window_size cells)
+    still saw a one-sided neighbourhood at the boundary, which is exactly
+    where seam discontinuity is measured. Cropping the raster instead
+    means every output cell, including edge cells, is interpolated from a
+    complete neighbourhood.
+
+    QC stats stay tile-only via `filters.stats`'s `where` + `where_merge`,
+    which computes statistics over just the matching points while passing
+    every point through to the writer unchanged. Without that restriction
+    ground_point_count would silently include the margin while
+    ground_pct's denominator (the tile's own header count) would not, and
+    the column would stop being comparable with unbuffered runs.
+
+    A branched pipeline was tried first and abandoned: PDAL 2.10 reports no
+    per-stage metadata for a second branch once a `writers.gdal` is
+    present -- the branch collapses into an unnamed, empty metadata entry,
+    so `filters.stats` becomes unreadable. Verified directly rather than
+    inferred. Keeping the chain linear avoids the problem entirely.
+    """
+    stages = [{"type": "readers.las", "filename": str(t).replace("\\", "/")}
+              for t in [tile] + list(neighbour_tiles)]
+    stages.append({"type": "filters.merge"})
+    # trim neighbours to just the margin before any real work
+    stages.append({"type": "filters.crop", "bounds": read_bounds})
+    stages.append({"type": "filters.assign", "assignment": "Classification[:]=0"})
+    if last_return_only:
+        stages.append({"type": "filters.returns", "groups": "last,only"})
+    stages.append({"type": "filters.elm", "cell": 33.0, "threshold": 3.3})
+    stages.append({"type": "filters.outlier", "method": "statistical",
+                   "mean_k": 8, "multiplier": 3.0})
+    stages.append({"type": "filters.smrf", "cell": cell, "window": window,
+                   "slope": slope, "threshold": threshold, "scalar": scalar,
+                   "ignore": "Classification[7:7]"})
+    stages.append({"type": "filters.range", "limits": "Classification[2:2]"})
+    if stats_dimensions:
+        stages.append({"type": "filters.stats", "dimensions": stats_dimensions,
+                       "where": crop_bounds, "where_merge": "auto"})
+    stages.append({"type": "writers.gdal",
+                   "filename": str(out_tif).replace("\\", "/"),
+                   "resolution": res, "output_type": "idw",
+                   "window_size": 6, "nodata": -9999,
+                   "origin_x": raster_grid["origin_x"],
+                   "origin_y": raster_grid["origin_y"],
+                   "width": raster_grid["width"],
+                   "height": raster_grid["height"]})
     return {"pipeline": stages}
 
 

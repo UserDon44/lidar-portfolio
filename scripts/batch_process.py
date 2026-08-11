@@ -40,6 +40,7 @@ carries a `_buf<N>` tag so it never overwrites that baseline.
 import argparse
 import csv
 import json
+import math
 import re
 import sys
 import time
@@ -63,7 +64,7 @@ INTL_FT_TO_M = 0.3048  # EPSG:6405 uses the international foot, not US survey fo
 
 CSV_FIELDS = [
     "tile", "status", "window", "slope", "threshold", "scalar", "cell", "res",
-    "last_return_only", "buffer_ft", "n_buffer_neighbours",
+    "last_return_only", "buffer_ft", "n_buffer_neighbours", "clip_srcwin",
     "point_count", "ground_point_count", "ground_pct",
     "z_min_ft", "z_max_ft", "point_density_per_m2", "void_cell_count",
     "void_cell_pct", "runtime_sec", "dem_path", "error_message",
@@ -252,13 +253,38 @@ def process_tile(tile_path, params, force, index=None, buffer_ft=0.0):
         row["point_count"] = point_count
 
         read_b = crop_b = None
+        grid = None
         if buffered:
             minx, maxx, miny, maxy = index[tile_path]
+            res = params["res"]
+            pad = buffer_ft / res
+            if abs(pad - round(pad)) > 1e-9:
+                raise ValueError(
+                    f"--buffer-ft {buffer_ft:g} is not a whole number of {res:g} ft "
+                    f"cells; the raster clip would land off-grid. Use a multiple "
+                    f"of the output resolution.")
+            pad = int(round(pad))
+            # PDAL anchors its grid at (minx, miny) and extends up/right by
+            # ceil(span/res) cells -- verified against the unbuffered rasters.
+            # Extending the origin by exactly `pad` whole cells therefore puts
+            # the tile's own region at pixel offset (pad, pad), so the clip is
+            # an integer window and lands on precisely the unbuffered grid.
+            inner_w = math.ceil((maxx - minx) / res)
+            inner_h = math.ceil((maxy - miny) / res)
+            grid = dict(origin_x=minx - buffer_ft, origin_y=miny - buffer_ft,
+                        width=inner_w + 2 * pad, height=inner_h + 2 * pad)
+            row["clip_srcwin"] = f"{pad} {pad} {inner_w} {inner_h}"
             read_b = pdal_bounds(minx - buffer_ft, maxx + buffer_ft,
                                  miny - buffer_ft, maxy + buffer_ft)
-            crop_b = pdal_bounds(minx, maxx, miny, maxy)
+            # a `where` expression, not a crop box: filters.stats restricts
+            # its statistics to these points while still passing every point
+            # through to the raster writer
+            crop_b = (f"X >= {minx} && X <= {maxx} && "
+                      f"Y >= {miny} && Y <= {maxy}")
             print(f"     buffering {buffer_ft:g} ft from {len(neighbours)} "
                   f"neighbour(s): {', '.join(n.stem[-6:] for n in neighbours)}")
+            print(f"     raster grid {grid['width']}x{grid['height']}, "
+                  f"clipping back to {inner_w}x{inner_h} at offset ({pad},{pad})")
         elif buffer_ft > 0:
             # isolated tile: nothing to buffer from. Not an error -- say so
             # rather than implying the tile was buffered when it wasn't.
@@ -272,11 +298,26 @@ def process_tile(tile_path, params, force, index=None, buffer_ft=0.0):
             last_return_only=params["last_return_only"],
             stats_dimensions="Z",
             neighbour_tiles=neighbours, read_bounds=read_b, crop_bounds=crop_b,
+            raster_grid=grid,
         )
         pipe_json.write_text(json.dumps(pipeline, indent=2))
 
         meta_path = pipe_json.with_suffix(".meta.json")
-        run(["pdal", "pipeline", str(pipe_json), "--metadata", str(meta_path)])
+        if buffered:
+            # write the oversized raster, then clip it back -- see
+            # _buffered_pipeline's docstring for why the clip is a raster
+            # operation rather than a point crop
+            wide_tif = dem_tif.with_name(dem_tif.stem + "_wide.tif")
+            for st in pipeline["pipeline"]:
+                if st["type"] == "writers.gdal":
+                    st["filename"] = str(wide_tif).replace("\\", "/")
+            pipe_json.write_text(json.dumps(pipeline, indent=2))
+            run(["pdal", "pipeline", str(pipe_json), "--metadata", str(meta_path)])
+            run(["gdal_translate", "-q", "-srcwin", *row["clip_srcwin"].split(),
+                 str(wide_tif), str(dem_tif)])
+            wide_tif.unlink(missing_ok=True)
+        else:
+            run(["pdal", "pipeline", str(pipe_json), "--metadata", str(meta_path)])
         stage_meta = json.loads(meta_path.read_text())["stages"]
         z_stats = stage_meta["filters.stats"]["statistic"][0]
         ground_count = z_stats["count"]

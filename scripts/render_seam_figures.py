@@ -34,9 +34,10 @@ UNBUF_TAG = "w120_s0.15_t1.6"
 BUF_TAG = "w120_s0.15_t1.6_buf150"
 BUFFER_FT = 150
 
-# N/S seams run E-W, so they cut ACROSS this collection's N-S flight lines;
-# E/W seams run parallel to them. That split is the figure's whole point.
-ORIENT = {"N": "across", "S": "across", "E": "parallel", "W": "parallel"}
+# NOTE: an earlier version of this figure grouped the seams by orientation
+# relative to the flight lines. That grouping was dropped: the apparent
+# split it showed was an artifact of an interpolation bug (points cropped
+# before rasterizing), and it does not exist in the corrected data.
 
 
 def fig_baseline_map():
@@ -117,14 +118,13 @@ def fig_before_after(u_res, u_base, b_res, b_base):
     # extra headroom so the legend (upper right) and the group labels below
     # it never collide -- they did at 1.30
     ymax = max(before) * 1.52
-    ax.axvline((x[1] + x[2]) / 2, color="#888888", ls="--", lw=1.0,
-               ymax=0.80)
+    # NOTE: an earlier version split these into "across" vs "parallel to
+    # flight lines" groups. That split was an artifact of a since-fixed
+    # interpolation bug and does not exist in the corrected data -- the
+    # grouping annotation was removed rather than relabelled.
     label_y = ymax * 0.79
-    ax.text((x[0] + x[1]) / 2, label_y,
-            "seams that cut ACROSS flight lines",
-            ha="center", va="top", fontsize=9.5, style="italic")
-    ax.text((x[2] + x[3]) / 2, label_y,
-            "seams PARALLEL to flight lines",
+    ax.text((x[1] + x[2]) / 2, label_y,
+            "black bar = natural 3 ft terrain step measured beside each seam",
             ha="center", va="top", fontsize=9.5, style="italic")
 
     ax.set_xticks(x)
@@ -132,8 +132,8 @@ def fig_before_after(u_res, u_base, b_res, b_base):
     ax.set_ylabel("Seam step RMS (ft, International Feet)")
     ax.set_ylim(0, ymax)
     ax.set_title(
-        "Buffering removes the edge-effect component, and nothing else\n"
-        "Seams crossing the flight lines improve 32–41%; those parallel to them, 4–6%",
+        "Buffering reduces seam discontinuity by 46-61%, uniformly across seams\n"
+        "Three of four fall to or below the natural terrain step measured beside them",
         fontsize=12)
     handles, labels = ax.get_legend_handles_labels()
     handles.append(Line2D([0], [0], color="black", lw=2.0))

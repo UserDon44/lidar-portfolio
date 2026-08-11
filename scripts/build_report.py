@@ -86,8 +86,10 @@ FIGURE_MAP = {
         ("fig13_seam_before_after.png",
          "Figure 10. Seam step RMS before and after 150 ft buffering, against "
          "the natural 3 ft terrain step measured beside each seam (black). "
-         "Seams crossing the flight lines improve 32–41%; those parallel "
-         "to them, 4–6% — and none reach the natural-terrain line."),
+         "Buffering reduces discontinuity 46–61% across all four seams; "
+         "three fall to or below the natural-terrain line. A ratio under 1.0 "
+         "reflects the two sides no longer being independent, not accuracy "
+         "exceeding real terrain — see §6.2."),
     ],
 }
 

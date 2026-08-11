@@ -820,44 +820,51 @@ DEMs still abut exactly rather than overlapping. Default 0 reproduces the
 unbuffered pipeline **byte-for-byte** (verified against the committed
 baseline pipeline JSON, not assumed).
 
-**Headline result: buffering removes the edge-effect component and
-nothing else.** The evidence is the split by seam orientation, and the
-prediction came first — see "The orientation split" below, which matters
-more than the improvement percentages.
+**RETRACTED AND CORRECTED (2026-08-10, same day).** The first buffered
+implementation cropped points to the tile *before* rasterizing. That
+fixed SMRF's classification edge effect but left IDW interpolating edge
+cells from a one-sided neighbourhood (fallback reach = window_size x res
+= 18 ft), which is inside the 1.5 ft-either-side zone the seam metric
+samples. Every headline number below is from the corrected version,
+which rasterizes onto a grid extended by the buffer and clips the
+*raster* back with `gdal_translate -srcwin`. The clipped raster is
+bit-identical in grid/bounds/CRS to the unbuffered one, so the
+comparison is not a gridding artifact.
 
-| seam | unbuffered RMS | buffered (150 ft) | change | local baseline | ratio before → after |
+**What the defective version claimed, and why it was believed**: that
+buffering helps seams crossing the flight lines (32-41%) far more than
+seams parallel to them (4-6%), and therefore removes the edge-effect
+component and nothing else. That split had been *predicted in advance*
+from the unbuffered baseline, so its apparent confirmation felt like
+strong evidence. It was an artifact of the crop-order bug. See the
+prediction rule in "How I want to work" -- this is the case it was
+written from.
+
+**Corrected result: buffering reduces seam discontinuity 46-61%,
+uniformly, with no orientation dependence.**
+
+| seam | unbuffered | buffered (corrected) | change | local baseline | ratio after |
 |---|---|---|---|---|---|
-| N | 0.608 ft | 0.412 ft | **−32.3%** | 0.225 ft | 2.71x → 1.83x |
-| S | 0.642 ft | 0.380 ft | **−40.8%** | 0.199 ft | 3.23x → 1.91x |
-| E | 0.219 ft | 0.211 ft | −3.6% | 0.137 ft | 1.61x → 1.55x |
-| W | 0.411 ft | 0.385 ft | −6.3% | 0.293 ft | 1.40x → 1.32x |
+| N | 0.608 ft | 0.237 ft | **-61.0%** | 0.225 ft | 1.06x |
+| S | 0.642 ft | 0.289 ft | **-55.0%** | 0.199 ft | 1.45x |
+| E | 0.219 ft | 0.119 ft | **-45.7%** | 0.137 ft | 0.87x |
+| W | 0.411 ft | 0.213 ft | **-48.1%** | 0.293 ft | 0.73x |
 
-**The orientation split, and why it counts as evidence.** Flight lines in
-this collection run N–S. The N/S seams cut *across* them and improved
-32–41%; the E/W seams run *parallel* and improved 4–6%. That split was
-**predicted from the unbuffered baseline alone**, before the buffered run
-existed — the N/S seams were already ~2x worse and flight-line
-orientation was written down at the time as the plausible mechanism (see
-the two open questions in the baseline notes, since resolved). The
-buffered run therefore *tested* the prediction rather than being mined
-for a pattern afterwards. Buffering cannot fix flight-line calibration,
-so where residual disagreement is dominated by it, buffering should do
-almost nothing — and it does almost nothing. Residual systematic offsets
-on S (+0.063 ft) and W (−0.066 ft) are the same order as the +0.124 ft
-inter-swath offset from item #4.
+Systematic offsets improved on every seam (N -98%, S -77%, E -68%,
+W -45%). The "W systematic offset regressed" finding recorded earlier
+was also an artifact: corrected, W improves 45%.
 
-**One component of one seam got worse**, recorded rather than averaged
-away: the W seam's systematic offset grew −0.0623 → −0.0656 ft (+5.3%),
-t from −6.3 to −7.1. Two separate things drive that t and shouldn't be
-conflated — the bias grew slightly *and* the noise fell (sd −6.6%),
-making the same bias easier to detect. W's random component improved
-while its systematic component regressed. Absolute size 0.0033 ft
-(~0.04 in). Every other seam's systematic component improved (N −65%,
-S −39%, E −33%); N and E lost significance entirely.
+**Three of four seams fall to at or below local natural terrain
+roughness.** A ratio under 1.0 is not accuracy exceeding terrain -- with
+a buffer both sides interpolate from overlapping point neighbourhoods,
+so they are correlated where the baseline's independent samples are not.
+Below 1.0 is the expected signature of the seam ceasing to be a
+discontinuity.
 
-**Buffering did not eliminate discontinuity anywhere.** All four seams
-remain at **1.32–1.91x** the natural terrain step beside them. That is
-the honest ceiling of the technique on this data.
+**S is the exception at 1.45x** with a small significant offset
+(+0.024 ft, t=+3.4). No cause claimed; flight-line calibration (item #4
+measured +0.124 ft) and real terrain are both consistent and this work
+does not separate them.
 
 **Baseline drift was checked, not assumed.** The 60/120 ft pseudo-seam
 insets sit inside SMRF's ~122 ft reach, so buffering could in principle
@@ -1022,9 +1029,10 @@ All ten original items, plus everything added since, are done:
 10. ~~Second tile, harder terrain~~ — **DONE**
 11. ~~Hydrologic analysis (fill, flow, streams, watershed)~~ — **DONE**
 12. ~~Multi-tile seam handling~~ — **DONE**. `--buffer-ft` implemented;
-    seams improved 32–41% where they cross flight lines, 4–6% where they
-    run parallel, and none reach natural terrain roughness. Written up in
-    QC memo §6. See the item #12 section above.
+    seams improved 46–61% uniformly, and three of four fall to at or
+    below local natural terrain roughness. Written up in QC memo §6.
+    Note the first implementation was defective and its headline finding
+    retracted the same day — see the item #12 section above.
 
 Also done, beyond the original numbered plan: the batch processor
 (`scripts/batch_process.py`), the vertical-datum/sensor/NVA research
@@ -1324,6 +1332,42 @@ update (see the session log for the date).
   `--ve 10 --azimuth 110 --elev 22 --distance 1.30 --decimate 1` plus an
   explicit `--out`. The usable single-tile figure is the 5x version
   alongside it.
+- **A prediction that comes true is not verification. Check the
+  mechanism, not just the match.** This is the most expensive lesson in
+  this file and the least intuitive, because the failure wore the
+  costume of good method.
+  What happened (2026-08-10): from the unbuffered seam baseline I
+  predicted, *in advance*, that buffering would help seams cutting
+  across the flight lines far more than seams parallel to them, on the
+  reasoning that buffering cannot fix flight-line calibration error. The
+  buffered run reproduced exactly that split — 32–41% vs 4–6%. It was
+  written into the QC memo as a headline finding, explicitly framed as a
+  prediction tested rather than a pattern mined, which is the stronger
+  form of evidence. Both of us treated the prediction holding as
+  confirmation; it was called out as worth stating explicitly in the
+  writeup.
+  **The split was an artifact of a bug.** The buffered pipeline cropped
+  points to the tile before rasterizing, so IDW still interpolated edge
+  cells from a one-sided neighbourhood — inside the exact 18 ft zone the
+  seam metric samples. Fixing the crop order (clip the raster, not the
+  points) removed the split entirely: improvement became 46–61% on all
+  four seams, and three fell to at or below natural terrain roughness.
+  Every headline claim in that section had to be retracted.
+  Why this earns its own rule: correct methodology made a false result
+  *more* credible rather than less. Predicting first is genuinely good
+  practice, and it is exactly what made the artifact persuasive — the
+  bug happened to produce the predicted pattern, so the prediction
+  "holding" felt like strong evidence when it was no evidence at all.
+  Reviewer endorsement compounded it: agreement that a well-formed
+  prediction had held is not verification of the result, and two people
+  independently finding a story satisfying is not a check.
+  Practically: when a prediction is confirmed, that is the moment to
+  verify the *mechanism* independently, not the moment to write it up.
+  Ask what else could produce this pattern. Here, one question — "does
+  the implementation actually do what the prediction assumes?" — would
+  have caught it, and it was asked only because the residual was
+  suspicious for an unrelated reason.
+
 - **Close out the session without being asked.** At the end of any
   working session — or the moment I say we're stopping, wrapping up,
   done for now, or anything equivalent — proactively update this file

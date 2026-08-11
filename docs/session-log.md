@@ -447,3 +447,59 @@ badly. If the regional-context point (the west tile holds terrain ~510 ft
 higher than anything in 980398, under 5,000 ft away, invisible from a
 single tile) is ever worth making, a plan-view hillshade states it without
 the distortion. The mosaic VRT and hillshade are kept for that.
+
+**The crop-order defect, and a retraction the same day**
+Reviewing the buffered implementation surfaced a specific gap: the
+pipeline cropped points to the tile *before* `writers.gdal`, so buffering
+fixed SMRF's classification edge effect but left IDW interpolating edge
+cells from a one-sided neighbourhood. IDW's fallback reach is
+window_size x res = 18 ft, and `measure_seams.py` samples at 1.5 ft
+either side of the boundary -- squarely inside it. Buffering was fixing
+classification and leaving interpolation broken at exactly the place
+being measured.
+
+Fixed by rasterizing onto a grid extended by the buffer and clipping the
+*raster* back with `gdal_translate -srcwin`. Two things were verified
+rather than assumed, either of which could have silently confounded the
+comparison. PDAL anchors its grid at (minx, miny) and extends by
+ceil(span/res) cells -- checked against existing rasters -- so with the
+buffer an exact multiple of the resolution the clip is an integer window;
+confirmed afterwards that the clipped raster is bit-identical in grid,
+bounds, transform and CRS to the unbuffered one. And removing the point
+crop would have let `ground_point_count` absorb the margin while
+`ground_pct`'s denominator stayed tile-only; a branched pipeline was
+tried first and abandoned after testing showed PDAL 2.10 reports no
+metadata for a second branch once a `writers.gdal` is present. The fix
+was `filters.stats` with `where` + `where_merge`, which computes stats
+over tile-only points while every point still flows to the writer --
+verified on a synthetic case and then against the real tile, where the
+ground count came out identical to the previous implementation.
+
+**The result refuted the headline finding written up earlier the same
+day.** The defective run had shown improvement splitting sharply by seam
+orientation (32-41% across the flight lines vs 4-6% parallel), which had
+been *predicted in advance* from the unbuffered baseline and was written
+into the memo as a prediction tested rather than a pattern mined.
+Corrected, there is no split: 46-61% uniformly, and three of four seams
+fall to at or below local natural terrain roughness. The "W systematic
+offset regressed" finding was likewise an artifact -- corrected, W
+improves 45%.
+
+Recorded as its own rule in CLAUDE.md, because it is the most expensive
+lesson here and the least intuitive: correct methodology made a false
+result *more* credible rather than less. Predicting before testing is
+good practice, and it is precisely what made the artifact persuasive --
+the bug happened to reproduce the predicted pattern, so the prediction
+"holding" felt like strong evidence when it was none. Reviewer
+endorsement compounded it; agreement that a well-formed prediction had
+held is not verification of the result. The practical form: a confirmed
+prediction is the moment to verify the mechanism independently, not the
+moment to write it up.
+
+Memo §6 rewritten (headline, prediction framing, ceiling claim and the W
+regression bullet all removed), the sub-1.0x ratios explained as the
+expected signature of the two sides no longer being independent rather
+than as better-than-terrain accuracy, figure regenerated from corrected
+measurements with its orientation grouping dropped, PDF rebuilt to 23
+pages, and the refuted version replaced on GitHub rather than left
+public.
