@@ -22,9 +22,29 @@ Examples
   python scripts/render_3d.py --ve 3 --decimate 1 --size 2400 1600   # print quality
 """
 import argparse
+import os
 import re
 import sys
 from pathlib import Path
+
+# Env bootstrap, required BEFORE importing anything that loads native DLLs.
+# Without it the script exits 127 with NO traceback -- a DLL resolution
+# failure, not a Python exception, so nothing prints at all. This script
+# survived without it while it only used PyVista; adding the matplotlib
+# import for the colorbar was enough to trip it.
+_ENV = Path(r"C:\Users\ryans\miniforge3\envs\lidar")
+for _d in (_ENV / "Library" / "bin", _ENV / "Library" / "mingw-w64" / "bin",
+            _ENV / "Scripts", _ENV):
+    if _d.is_dir():
+        try:
+            os.add_dll_directory(str(_d))
+        except (AttributeError, OSError):
+            pass
+os.environ["PATH"] = os.pathsep.join(
+    [str(_ENV), str(_ENV / "Library" / "bin"), str(_ENV / "Scripts"),
+     os.environ.get("PATH", "")])
+os.environ.setdefault("GDAL_DATA", str(_ENV / "Library" / "share" / "gdal"))
+os.environ.setdefault("PROJ_LIB", str(_ENV / "Library" / "share" / "proj"))
 
 import numpy as np
 import rasterio
@@ -175,6 +195,27 @@ def main():
                     help="scene name used in the caption")
     ap.add_argument("--out", type=Path, default=None,
                     help="override output path (VE is still added to the caption)")
+    ap.add_argument("--colormap", default=None,
+                   help="matplotlib colormap for elevation colouring, "
+                        "modulated by the hillshade. Omit for the plain "
+                        "grayscale hillshade drape. Use a perceptually "
+                        "uniform map (viridis, cividis, magma) -- rainbow "
+                        "maps invent banding that reads as terrain steps.")
+    ap.add_argument("--vmin", type=float, default=None,
+                   help="fix the low end of the elevation colour scale. "
+                        "REQUIRED when rendering a comparison pair: the "
+                        "default per-render 2-98 percentile normalisation "
+                        "means the same colour denotes DIFFERENT elevations "
+                        "in two images, which silently defeats a height "
+                        "comparison.")
+    ap.add_argument("--vmax", type=float, default=None,
+                   help="fix the high end of the elevation colour scale")
+    ap.add_argument("--colorbar", action="store_true",
+                   help="composite an elevation key onto the render. Without "
+                        "it, brightness carries both height and illumination "
+                        "and the colour ramp is not a readable scale.")
+    ap.add_argument("--units", default="ft", choices=["ft", "m"],
+                   help="linear unit of the DEM, for the caption only")
     ap.add_argument("--no-caption", action="store_true",
                     help="suppress the burned-in caption (the VE stays in the filename)")
     args = ap.parse_args()
@@ -194,7 +235,25 @@ def main():
 
     grid = build_mesh(X, Y, z, args.ve)
 
-    rgb = np.dstack([hs] * 3) if hs.ndim == 2 else hs
+    shade = hs[..., 0] if hs.ndim == 3 else hs
+    if args.colormap:
+        # Elevation colour modulated by the hillshade. The colour carries
+        # height, the shading carries form; multiplying keeps both legible
+        # without either inventing structure. Normalised on the 2nd-98th
+        # percentile so a single outlier cell cannot flatten the ramp.
+        import matplotlib
+        from matplotlib.colors import Normalize
+        lo = args.vmin if args.vmin is not None else float(np.nanpercentile(z, 2))
+        hi = args.vmax if args.vmax is not None else float(np.nanpercentile(z, 98))
+        rgba = matplotlib.colormaps[args.colormap](Normalize(lo, hi, clip=True)(z))
+        col = rgba[..., :3]
+        # 0.35 floor: pure multiplication drives shadowed faces to black and
+        # destroys the elevation signal exactly where relief is steepest.
+        rgb = col * (0.35 + 0.65 * (shade.astype(float) / 255.0))[..., None]
+        rgb = np.clip(rgb * 255.0, 0, 255)
+        rgb = np.nan_to_num(rgb, nan=255.0)
+    else:
+        rgb = np.dstack([shade] * 3)
     texture = pv.Texture(np.ascontiguousarray(rgb.astype(np.uint8)))
 
     pl = pv.Plotter(off_screen=True, window_size=list(args.size))
@@ -209,15 +268,18 @@ def main():
     exaggerated = abs(args.ve - 1.0) > 1e-9
     ve_txt = (f"VERTICAL EXAGGERATION {args.ve:g}x"
               if exaggerated else "NO VERTICAL EXAGGERATION (true scale)")
+    u = args.units
+    rel_fmt = f"{relief:.1f}" if relief < 20 else f"{relief:.0f}"
     if exaggerated:
-        calib = (f"relief {relief:.0f} ft over {width_ft:,.0f} ft = {true_pct:.1f}% true; "
+        calib = (f"relief {rel_fmt} {u} over {width_ft:,.0f} {u} = {true_pct:.1f}% true; "
                  f"appears as {true_pct*args.ve:.1f}%")
     else:
-        calib = f"relief {relief:.0f} ft over {width_ft:,.0f} ft = {true_pct:.1f}%"
+        calib = f"relief {rel_fmt} {u} over {width_ft:,.0f} {u} = {true_pct:.1f}%"
 
     if not args.no_caption:
         pl.add_text(
-            f"{args.label} - bare-earth DEM, hillshade draped as texture\n"
+            f"{args.label} - bare-earth DEM, "
+            f"{'elevation colour x hillshade' if args.colormap else 'hillshade draped as texture'}\n"
             f"{ve_txt}\n"
             f"{calib}\n"
             f"camera {args.azimuth:g} deg bearing, {args.elev:g} deg above horizon",
@@ -233,8 +295,47 @@ def main():
     out.parent.mkdir(parents=True, exist_ok=True)
     pl.screenshot(str(out))
     pl.close()
+
+    if args.colorbar and args.colormap:
+        # Composited after the 3D pass rather than drawn by PyVista: the
+        # mesh carries a texture, not a scalar field, so there is no mapper
+        # for add_scalar_bar to key off. Matplotlib gets the exact same
+        # normalisation used to build the texture, so the key is honest.
+        import matplotlib
+        matplotlib.use("Agg")
+        import matplotlib.pyplot as plt
+        from matplotlib.colors import Normalize
+        from matplotlib.cm import ScalarMappable
+
+        img = plt.imread(str(out))
+        ih, iw = img.shape[:2]
+        fig = plt.figure(figsize=(iw / 100.0, ih / 100.0), dpi=100)
+        ax = fig.add_axes([0, 0, 1, 1])
+        ax.imshow(img)
+        ax.axis("off")
+        # Left margin: the terrain fills the centre-right of the frame,
+        # so a right-hand bar overlaps the mesh and clips its own title.
+        cax = fig.add_axes([0.045, 0.15, 0.016, 0.30])
+        sm = ScalarMappable(norm=Normalize(vmin=lo, vmax=hi), cmap=args.colormap)
+        cb = fig.colorbar(sm, cax=cax)
+        fixed = args.vmin is not None and args.vmax is not None
+        # The scale's provenance goes in the LABEL, not a title above the
+        # bar: a title there renders outside the axes and clips. It matters
+        # because a per-render scale means the same colour denotes different
+        # elevations in two images -- the reader has to be able to tell.
+        cb.set_label(
+            f"Elevation ({args.units}) - "
+            + ("FIXED scale, comparable across panels" if fixed
+               else "per-render scale, NOT comparable"),
+            fontsize=8.5, color=("black" if fixed else "#b5423a"))
+        cb.ax.tick_params(labelsize=8)
+        fig.savefig(str(out), dpi=100)
+        plt.close(fig)
+        print(f"  colorbar composited ({lo:.2f}-{hi:.2f} {args.units}, "
+              f"{'fixed' if fixed else 'PER-RENDER -- not comparable'})")
     print(f"saved {out}")
-    print(f"  {ve_txt}; relief {relief:.1f} ft; camera az {args.azimuth:g} el {args.elev:g}")
+    print(f"  {ve_txt}; relief {relief:.1f} {args.units}; "
+          f"camera az {args.azimuth:g} el {args.elev:g}")
 
 
 if __name__ == "__main__":
