@@ -584,3 +584,43 @@ at the same time, since finding one unit-bearing literal is reason to
 suspect others: `filters.outlier`'s `mean_k` is a neighbour count and
 `multiplier` a sigma multiple, and `writers.gdal`'s `window_size` is in
 cells. All unit-free. ELM was the only one.
+
+---
+
+## 2026-08-11 — corrections reaching back from project two
+
+Project two consumed the day; three things landed here.
+
+**The "you can't see a hillshade" line was false.** It sat in the "How I
+want to work" section for the entire project and shaped how every visual
+check was run: Claude generated images and handed them over, never
+looking. Claude reads images directly with the Read tool. In project two
+one Read call found a legend overprinting a scale bar and a caption
+describing a full-width density band as a corner -- neither of which I
+had spotted, and neither findable by reading the plotting code.
+
+Corrected to "both of us look", because the catches barely overlap: I
+found three things in figures Claude had never opened, and Claude then
+found two entirely different ones. What is unreliable turns out to be
+visual *inference*, not perception -- and my own inferences failed the
+same way. I read the two byte-identical hillshades as showing texture
+differences, and asserted the green strips were the levee crown from
+spatial proximity across two figures. Same middle tier, same failure
+mode as the retracted hill.
+
+**Third inherited claim to fail.** After "this project has zero pairs of
+spatially-adjacent tiles" (all eight were public the whole time) and
+"run_dem.py is generic, runs unchanged" (its ELM defaults were feet
+literals). Same shape each time: something true of a particular
+situation, written down without its scope, restated in each new document
+until it hardened into a property of the world, never re-checked because
+it read as background rather than as a claim. Now a standing rule in the
+global file -- inherited claims get re-verified once, at the start.
+
+**Permission policy and hooks added.** Allow/ask/deny tiers, a
+destructive-command guard, and a deliverable-number audit, all shared
+with project two. Also untracked `.claude/settings.local.json`, which had
+been committed in 8013a91 before the ignore rule existed: gitignore never
+applies to already-tracked paths, so 40+ accumulated one-off allows --
+including a blanket read of the whole C: drive -- had been in version
+control for the life of the project.

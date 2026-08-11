@@ -1282,9 +1282,18 @@ generic.
   explicitly sent to the user as deliverable images.
 
 ## How I want to work
-- Compute the numbers; I'll judge whether they're plausible. You can't see
-  a hillshade and I can — when a check is visual, generate the image and
-  hand it to me rather than guessing at what it shows.
+- Compute the numbers; I'll judge whether they're plausible. **Both of us
+  look at every figure.** This bullet used to read "you can't see a
+  hillshade and I can" — that is **false** and was never tested. Claude
+  reads images directly with the Read tool. Corrected 2026-08-11 in
+  project two, where looking immediately found a legend overprinting a
+  scale bar and a caption describing a full-width band as a corner,
+  neither of which I had spotted.
+  Both passes are needed because the catches barely overlap: in that
+  session I found three things in figures Claude had never opened, and
+  Claude then found two different ones. Neither substitutes for the
+  other. What is unreliable is *visual inference*, not perception —
+  see the three tiers in `~/.claude/CLAUDE.md`.
 - Change one parameter at a time. Keep every run's output.
 - Flag anything that looks like systematic error. Internal consistency
   checks pass perfectly on a surface that is uniformly wrong.
