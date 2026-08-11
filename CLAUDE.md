@@ -1237,9 +1237,23 @@ the item-#12 baseline), `7bd422c` (item #12 baseline recorded),
 (high-VE artifact rule), `f8e6a22` (10x render marked ARTIFACT_EXAMPLE),
 `d134e35` (**seam finding retracted and corrected** — crop-order defect),
 `b76747a` (root paths resolved from script location, `--epsg`
-configurable). This `CLAUDE.md` update, plus
-`docs/session-log.md`, are being committed together right after this
-update (see the session log for the date).
+configurable), `73f91bd` (script portability map + pre-project-two
+refactor recorded), `92b623b` (ELM `cell`/`threshold` exposed as
+parameters — they were hardcoded in feet inside an otherwise "generic"
+function; found by project two's metre-CRS data, see below). This
+`CLAUDE.md` update, plus `docs/session-log.md`, are being committed
+together right after this update (see the session log for the date).
+
+**Project two has started** at `C:\Users\ryans\lidar-everglades`
+(separate repo, alongside this one — this project stays frozen). It is
+the S-151 / Miami Canal site in the Everglades, chosen to demonstrate
+terrain and hydrology *inversion* rather than another parameter sweep:
+metres not feet, Geoid12B not 12A, 7.4% ground versus 70.9%, 2.81 m of
+relief versus 164 ft. Its own `CLAUDE.md` holds the details. The one
+thing that reached back into *this* repo is the ELM fix above — worth
+knowing that project two's first real act was finding a units defect in
+a script this project's portability inventory had signed off as
+generic.
 
 - `data/raw/` now holds seven files, all gitignored: the original tile,
   its four edge-adjacent neighbours (`..._975398`, `..._980393`,

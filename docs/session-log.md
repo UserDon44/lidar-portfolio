@@ -541,3 +541,46 @@ reproduced its documented figures exactly.
 Deliberately stopped there. Shared helpers stay duplicated until a
 second project shows what actually repeats; the candidates are noted in
 CLAUDE.md rather than extracted on speculation.
+
+---
+
+## 2026-08-10 (later) — a units defect found from the outside
+
+Project two opened tonight in a separate repo
+(`C:\Users\ryans\lidar-everglades`, Everglades / S-151). Only one thing
+reached back into this project, and it is the interesting part.
+
+Before running anything against metric data, `run_dem.py`'s
+`build_pipeline()` turned out to hardcode ELM as `cell=33.0,
+threshold=3.3` — feet, converted from PDAL's 10 m / 1 m metric defaults
+back at the start of this project and then frozen as literals. Against
+project two's EPSG:6350 metre CRS those silently become a 33 m cell and
+a 3.3 m threshold: no exception, no warning, just a wrong noise-removal
+stage feeding a plausible-looking surface.
+
+What makes this worth a log entry rather than a one-line fix note: this
+exact function was inventoried a few hours earlier, in the portability
+pass, and classified **"generic, runs unchanged."** That classification
+was made by reading the code's structure — CLI-driven, tile identity
+only a default, root resolved from `__file__` — and the structure really
+was generic. The defect was in a value, not a shape, and no amount of
+reading it in isolation would have surfaced it. It took data in
+different units to make it visible.
+
+So the lesson recorded in `CLAUDE.md` is narrower and more useful than
+"audit harder": *"generic" needs testing against a genuinely different
+CRS, not asserting from structure.* A portability claim is a claim about
+behaviour under conditions you haven't tried yet, which means it isn't
+verified until you try them.
+
+Fixed as parameters (`--elm-cell`, `--elm-threshold`, plus per-tile keys
+in `tile_params.json`) rather than a project-two override, on the
+principle that the special case would have to be written again for
+project three. Defaults unchanged, and the unbuffered centre tile's DEM
+reruns byte-identical, so this repo's recorded results are unaffected.
+
+The rest of `build_pipeline()` was audited for the same class of defect
+at the same time, since finding one unit-bearing literal is reason to
+suspect others: `filters.outlier`'s `mean_k` is a neighbour count and
+`multiplier` a sigma multiple, and `writers.gdal`'s `window_size` is in
+cells. All unit-free. ELM was the only one.
