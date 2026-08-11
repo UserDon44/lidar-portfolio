@@ -406,3 +406,44 @@ measured. Report rebuilt to 23 pages.
 **Open from this work**: buffer distance was never optimised. 150 ft was
 chosen to exceed SMRF's ~122 ft reach; whether a larger buffer improves
 the crossing seams further is untested and is the obvious next experiment.
+
+**3D renders, and a false finding caught before it reached the memo**
+Rendered San Xavier (5x and 10x, viewed from the ESE so the wash sits in
+the middle distance and the hills on the skyline) after confirming Tucson
+had already been done. Settled on 5x: at 10x the exaggeration does the
+work rather than the data, turning a 3.2% grade into a spike.
+
+Fixed a third naming defect on the way -- `render_3d.py` had "tucson"
+hardcoded into the output filename, so rendering any other DEM would have
+written a file whose name asserted the wrong subject. The slug now derives
+from `--label`. Third one of these caught before it wrote something false.
+
+Then the substantive lesson. The 10x render appeared to show the western
+hill sliced vertically by the tile boundary, and I reported it as a real
+finding: a landform severed by an arbitrary delivery boundary, relief
+understated by ~500 ft, thematically parallel to the seam work. It was
+agreed as worth writing into the memo. Checking it before writing showed
+it was entirely false. A transect at the hill's own latitude puts the
+summit at 2,637.9 ft inside the centre tile with terrain falling away
+westward; every latitude band along that seam has the centre side equal
+or higher; understatement 0.0 ft. The west tile's 3,164.7 ft high ground
+is a separate landform 4,875 ft further west. The apparent cut face was
+hillshade texture stretched over the hill's steep west slope by the 10x
+exaggeration itself.
+
+Recorded in CLAUDE.md as its own rule, because it is a distinct failure
+mode from the ones already there: the caption rule covers a caption
+overclaiming what a correct image shows, whereas here the image
+manufactured a feature that did not exist. What makes it worth writing
+down is that the artifact survived review by both of us -- it looked like
+exactly the kind of finding this project had been producing, which is
+precisely what made it persuasive. Agreement between two people who both
+want a finding to be real is not evidence. The check that settled it was
+a single elevation transect and took under a minute.
+
+Nothing about it went into the memo. Also dropped the 3-tile mosaic 3D
+render: at 3:1 the strip foreshortens into a wedge and the texture streaks
+badly. If the regional-context point (the west tile holds terrain ~510 ft
+higher than anything in 980398, under 5,000 ft away, invisible from a
+single tile) is ever worth making, a plan-view hillshade states it without
+the distortion. The mosaic VRT and hillshade are kept for that.

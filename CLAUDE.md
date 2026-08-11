@@ -1282,6 +1282,36 @@ update (see the session log for the date).
   and a visual hillshade comparison produced a confident but entirely
   imagined read of the difference. `md5sum` the outputs. It takes one
   command and it is not fooled by expectation.
+- **A feature visible only at high vertical exaggeration must be checked
+  against the underlying data before it is treated as real. Renders
+  generate hypotheses; they do not confirm them.** This is a *different*
+  failure from the caption rule above, and worth separating: there the
+  caption overclaimed what a correct image showed, here the image itself
+  manufactured a feature that did not exist.
+  What happened (2026-08-10): a 10x-exaggerated 3D render of San Xavier
+  showed what looked like a hill sliced vertically by the west tile
+  boundary. It was reported as a real finding — a landform truncated by
+  an arbitrary delivery boundary, understating relief by ~500 ft — and
+  agreed on as worth writing into the memo. **None of it was true.** A
+  transect at the hill's own latitude puts the summit at 2,637.9 ft
+  *inside* the centre tile with terrain falling away to the west, and
+  every latitude band along that seam has the centre side equal or
+  higher; understatement 0.0 ft. The west tile's 3,164.7 ft high ground
+  is a separate landform 4,875 ft further west. The "cut face" was
+  hillshade texture stretched across the hill's steep west face by the
+  10x exaggeration itself.
+  The reason this earns its own rule rather than being folded into the
+  caption rule: **the artifact survived review by both the author and
+  the reviewer.** It looked like exactly the kind of thing this project
+  had been finding, which is what made it persuasive, and agreement
+  between two people who both want the finding to be real is not
+  evidence. The check that settled it — one elevation transect across
+  the boundary — took under a minute and should have come before the
+  claim, not after it.
+  Practically: the higher the exaggeration, the more suspicious to be of
+  any *new* feature it reveals, especially near a data edge where
+  texture stretching is worst. Confirm from the DEM (transect, profile,
+  or difference) before it becomes a sentence anyone else reads.
 - **Close out the session without being asked.** At the end of any
   working session — or the moment I say we're stopping, wrapping up,
   done for now, or anything equivalent — proactively update this file

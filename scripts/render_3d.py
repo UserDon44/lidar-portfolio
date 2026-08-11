@@ -22,6 +22,7 @@ Examples
   python scripts/render_3d.py --ve 3 --decimate 1 --size 2400 1600   # print quality
 """
 import argparse
+import re
 import sys
 from pathlib import Path
 
@@ -221,7 +222,12 @@ def main():
             position="upper_left", font_size=11, color="black")
 
     ve_tag = "ve1_truescale" if abs(args.ve - 1.0) < 1e-9 else f"ve{args.ve:g}x".replace(".", "p")
-    out = args.out or (FIG_DIR / f"fig12_tucson_3d_{ve_tag}_az{args.azimuth:g}_el{args.elev:g}.png")
+    # scene slug comes from --label, never hardcoded: an earlier version
+    # baked "tucson" into every filename, so rendering any other DEM would
+    # have produced a file whose name asserted the wrong subject
+    slug = re.sub(r"[^a-z0-9]+", "_", args.label.lower()).strip("_") or "scene"
+    out = args.out or (FIG_DIR /
+                       f"fig12_{slug}_3d_{ve_tag}_az{args.azimuth:g}_el{args.elev:g}.png")
     out.parent.mkdir(parents=True, exist_ok=True)
     pl.screenshot(str(out))
     pl.close()
