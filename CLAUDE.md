@@ -1024,6 +1024,34 @@ Highest-value shared pieces if extraction ever happens: `run_dem.py`'s
 `compare_vendor.py`'s `align()` grid fix, and `measure_seams.py`'s
 per-side-baseline method.
 
+## The deliverable-number audit was INERT for this project's whole life
+
+**Every deliverable in this repo was produced without the automated
+number check running.** Discovered 2026-08-12.
+
+The `PostToolUse` hook was configured in `.claude/settings.json` and
+invoked as `"$CLAUDE_PROJECT_DIR/.claude/hooks/check_deliverable_numbers.py"`,
+relying on the `#!/usr/bin/env python3` shebang. On this machine that
+resolves to the Windows Store stub — `"Python was not found"`, exit 49.
+A `PreToolUse` hook exiting non-2 is a *non-blocking* error, so the
+companion `guard_destructive.py` silently did not guard either. There was
+never a `last_number_audit.txt` in this repo, which was the tell nobody
+read.
+
+**This does not invalidate the audits — they were run.** The 2026-08-10
+audit of every quantitative claim happened, found real defects, and its
+corrections stand. But it was a **manual** run of the script, not
+automatic per-write coverage. The `23×` → `15×` baseline error in project
+two was caught the same way: by a deliberate manual audit, not by the
+hook firing on save.
+
+Recording it so no later session assumes coverage that did not exist. If
+a number in `qc_memo.md` or `qc_report.pdf` is wrong, the hook is not the
+reason it survived — nothing was watching.
+
+Fixed by invoking an explicit interpreter path. Verified firing live
+afterwards, not merely configured.
+
 ## Known Limitations
 
 **Tile-boundary edge effects (SMRF, not buffered).** SMRF's ground

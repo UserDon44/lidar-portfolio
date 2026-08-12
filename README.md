@@ -100,6 +100,25 @@ hand-authored prose, not regenerable rasters).
   threshold-tuned away.
 - Full limitations list, with citations: `output/reports/qc_memo.md` §7.
 
+## The automated number check was inert while this project was written
+
+`.claude/hooks/check_deliverable_numbers.py` traces every number written
+into `output/reports/` back to an artifact that derives it. **It never ran
+as a hook.** Until 2026-08-12 it was invoked via its
+`#!/usr/bin/env python3` shebang, which on this machine resolves to the
+Windows Store stub — `"Python was not found"`, exit 49 — so the check was
+configured and inert, and the companion `guard_destructive.py` silently
+did not guard either.
+
+The 2026-08-10 audit of every quantitative claim in these deliverables
+was real and its corrections stand, but it was a **manual** run of that
+script, not automatic per-write coverage. Recorded so nobody assumes
+protection that was not operating. There is deliberately no
+`last_number_audit.txt` here — had one existed it would have implied
+coverage that never happened.
+
+Fixed by invoking an explicit interpreter path, verified firing live.
+
 ## Layout
 
 ```
