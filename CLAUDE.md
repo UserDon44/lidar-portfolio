@@ -1027,7 +1027,7 @@ per-side-baseline method.
 ## The deliverable-number audit was INERT for this project's whole life
 
 **Every deliverable in this repo was produced without the automated
-number check running.** Discovered 2026-08-12.
+number check running.** Discovered 2026-08-11.
 
 The `PostToolUse` hook was configured in `.claude/settings.json` and
 invoked as `"$CLAUDE_PROJECT_DIR/.claude/hooks/check_deliverable_numbers.py"`,

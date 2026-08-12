@@ -104,7 +104,7 @@ hand-authored prose, not regenerable rasters).
 
 `.claude/hooks/check_deliverable_numbers.py` traces every number written
 into `output/reports/` back to an artifact that derives it. **It never ran
-as a hook.** Until 2026-08-12 it was invoked via its
+as a hook.** Until 2026-08-11 it was invoked via its
 `#!/usr/bin/env python3` shebang, which on this machine resolves to the
 Windows Store stub — `"Python was not found"`, exit 49 — so the check was
 configured and inert, and the companion `guard_destructive.py` silently
