@@ -624,3 +624,44 @@ been committed in 8013a91 before the ignore rule existed: gitignore never
 applies to already-tracked paths, so 40+ accumulated one-off allows --
 including a blanket read of the whole C: drive -- had been in version
 control for the life of the project.
+
+---
+
+## 2026-08-12 — this repo has been the rooted one all along, and its hooks do fire
+
+Tooling session, no analysis work. Recorded here because the finding is
+*about* this repo even though the work it affected was in `lidar-kilauea`.
+
+`CLAUDE.md` has carried a section since 2026-08-11 titled "the
+deliverable-number audit was INERT for this project's whole life" — the
+`#!/usr/bin/env python3` shebang resolving to the Windows Store stub. That
+was fixed with an explicit interpreter path and is now **confirmed live**:
+a probe file containing a number, written under `output/reports/`, fired
+the audit immediately and produced `.claude/hooks/last_number_audit.txt`.
+
+The larger finding is where they were firing *from*. Claude Code has been
+rooted at `lidar-portfolio` across sessions whose actual work was in
+`lidar-kilauea`. Hooks load from the session root only, so **this repo's
+hooks have been the loaded set throughout, and Kīlauea's have never fired
+once.** That had been an open question in the other project for three
+sessions, and three probes failed to settle it because each used
+number-free text and so could not have fired at all.
+
+One correction worth keeping: a guard block seen while editing Kīlauea
+files felt like evidence Kīlauea's guard was live. It was this repo's
+guard reaching across a working directory. All three copies are
+byte-identical, so a block message can never name which one fired — the
+artifact's location can, which is why that was the right discriminator
+and the guard's behaviour was not.
+
+Added here and in both siblings: a SessionStart banner that states the
+root and names the repos whose hooks are consequently not loaded, and a
+SessionEnd closeout check covering uncommitted paths, whether the durable
+records were touched, and backup staleness. SessionEnd rather than
+`Stop`, because `Stop` fires every turn and a nag every turn is how a
+check gets ignored and then routed around.
+
+Also fixed a `.gitignore` that named `last_number_audit.txt` by exact
+filename rather than by pattern — it would have tracked both new
+artifacts immediately, and had already been quietly tracking a
+`guard_destructive.cpython-311.pyc`.

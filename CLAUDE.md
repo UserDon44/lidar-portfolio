@@ -1052,6 +1052,62 @@ reason it survived — nothing was watching.
 Fixed by invoking an explicit interpreter path. Verified firing live
 afterwards, not merely configured.
 
+**CONFIRMED FIRING, 2026-08-12, and this repo is the reason the other
+two were not.** A probe file containing a number, written under
+`output/reports/`, fired the audit immediately and wrote
+`.claude/hooks/last_number_audit.txt`. So the hooks in *this* repo work.
+
+The finding that matters is where they were working *from*: Claude Code
+has been rooted at `lidar-portfolio` across sessions where the actual
+work was in `lidar-kilauea`. Hooks load from the session root only, so
+**this repo's hooks have been the loaded set the whole time and
+Kīlauea's have never fired once.** Adding `lidar-kilauea/.claude` as an
+additional working directory does not help — that grants file access, not
+settings loading — and opening the folder in an editor does not help
+either, because a *resumed* conversation keeps its original root.
+
+Consequence worth carrying: a guard block observed while touching another
+repo's files is **this** repo's guard reaching across a working
+directory. All three copies are byte-identical, so the block message can
+never identify which fired. That is why the audit artifact's *location*
+is the discriminator and the guard's behaviour is not.
+
+## SESSION TOOLING: start and end now fail loudly (2026-08-12)
+
+Two hooks added here and in both sibling repos, byte-identical
+(checksum-verified), because whichever repo is rooted is the one that
+runs:
+
+- **`.claude/hooks/session_banner.py` (SessionStart)** — states the
+  session root, names the sibling repos whose hooks are therefore NOT
+  loaded, reports whether python/pdal resolve by explicit path, and flags
+  a stale OneDrive backup. It does not guess intent and does not block;
+  it converts an invisible condition into a visible one. That is the
+  whole fix for the root confusion above.
+- **`.claude/hooks/session_closeout.py` (SessionEnd)** — reports
+  uncommitted paths, whether `CLAUDE.md` and `docs/session-log.md` were
+  actually touched, and backup staleness. **SessionEnd, not `Stop`**:
+  `Stop` fires every turn, and a closeout reminder every turn is noise,
+  which is how a check gets ignored and then routed around — the
+  inert-hook failure by a slower road.
+
+Both write an artifact (`last_session_banner.txt`,
+`last_closeout_check.txt`) next to `last_number_audit.txt`, for the same
+reason: a hook whose only output is a message you might not see is
+indistinguishable from one that never ran.
+
+Validated with Python, never `jq` — `jq` is not installed on this machine
+and its "command not found" exit is indistinguishable from "invalid
+JSON", which already produced one false INVALID verdict on three good
+files.
+
+**The `.gitignore` named one file where it needed a pattern.** It
+excluded `.claude/hooks/last_number_audit.txt` by exact filename, so two
+new run-artifacts would have been tracked the instant they existed. Now
+`.claude/hooks/last_*.txt` plus `__pycache__/` — which also caught a
+stray `guard_destructive.cpython-311.pyc` that had been tracked here for
+some time. Verified with `git check-ignore`, not assumed.
+
 ## Known Limitations
 
 **Tile-boundary edge effects (SMRF, not buffered).** SMRF's ground
